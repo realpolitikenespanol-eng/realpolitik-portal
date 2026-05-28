@@ -81,6 +81,24 @@ st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap');
 
+    /* Ocultar el menú superior derecho (hamburguesa) y el ícono de estado */
+    [data-testid="stToolbar"] {{
+        visibility: hidden;
+        display: none;
+    }}
+
+    /* Ocultar la marca de agua "Made with Streamlit" abajo a la derecha */
+    footer {{
+        visibility: hidden;
+        display: none;
+    }}
+
+    /* Ocultar el botón de "Deploy" si aparece en la barra superior */
+    [data-testid="stDecoration"] {{
+        visibility: hidden;
+        display: none;
+    }}
+
     .stApp {{
         background-color: #0b0d10 !important;
         color: #cbd5e1;
@@ -309,8 +327,8 @@ activo_editorial = "nav-enlace-activo" if st.session_state.pagina_actual == "Mes
 st.markdown(f"""
     <div class="nav-superior-container">
         <a href="?nav=Inicio" target="_self" class="nav-enlace {activo_inicio}">Menú Principal</a>
-        <a href="?nav=Articulos" target="_self" class="nav-enlace {activo_articulos}">Portal de Artículos</a>
-        <a href="?nav=AuditoriaIA" target="_self" class="nav-enlace {activo_ia}">Auditoría (IA)</a>
+        <a href="?nav=Articulos" target="_self" class="nav-enlace {activo_articulos}">Artículos</a>
+        <a href="?nav=AuditoriaIA" target="_self" class="nav-enlace {activo_ia}">Briefing Room</a>
         <a href="?nav=Contacto" target="_self" class="nav-enlace {activo_contacto}">Contacto</a>
         <a href="?nav=MesaEditorial" target="_self" class="nav-enlace {activo_editorial}">Mesa Editorial</a>
     </div>
@@ -322,7 +340,7 @@ st.markdown(f"""
 # =========================================================================
 with st.sidebar:
     st.markdown('<div class="micro-label">Navegación del Sistema</div>', unsafe_allow_html=True)
-    opciones_sidebar = ["Inicio", "Archivo de Artículos", "Laboratorio de Auditoría (IA)", "Contacto Oficial", "Mesa Editorial"]
+    opciones_sidebar = ["Inicio", "Artículos", "Briefing Room", "Contacto", "Mesa Editorial"]
     
     idx_defecto = 0
     if st.session_state.pagina_actual == "Articulos" or st.session_state.pagina_actual.startswith("Art_"):
@@ -340,9 +358,9 @@ with st.sidebar:
         st.session_state.pagina_actual = "Inicio"; st.query_params["nav"] = "Inicio"; st.rerun()
     elif seleccion == "Archivo de Artículos" and not st.session_state.pagina_actual.startswith("Art"):
         st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
-    elif seleccion == "Laboratorio de Auditoría (IA)" and st.session_state.pagina_actual != "AuditoriaIA":
+    elif seleccion == "Briefing Room" and st.session_state.pagina_actual != "AuditoriaIA":
         st.session_state.pagina_actual = "AuditoriaIA"; st.query_params["nav"] = "AuditoriaIA"; st.rerun()
-    elif seleccion == "Contacto Oficial" and st.session_state.pagina_actual != "Contacto":
+    elif seleccion == "Contacto" and st.session_state.pagina_actual != "Contacto":
         st.session_state.pagina_actual = "Contacto"; st.query_params["nav"] = "Contacto"; st.rerun()
     elif seleccion == "Mesa Editorial" and st.session_state.pagina_actual != "MesaEditorial":
         st.session_state.pagina_actual = "MesaEditorial"; st.query_params["nav"] = "MesaEditorial"; st.rerun()
@@ -353,15 +371,15 @@ with st.sidebar:
 
 # --- VISTA 1: MENU PRINCIPAL ---
 if st.session_state.pagina_actual == "Inicio":
-    st.markdown(f"""<div class="hero-container"><h1 class="titulo-header">REALPOLITIK</h1><p class="subtitulo-header">Macroeconomics, Geopolitics & Structural Analysis</p></div>""", unsafe_allow_html=True)
-    st.markdown("""<div class="declaracion-manifiesto">En un entorno global definido por la volatilidad sistémica, los sesgos ideológicos y la saturación de ruido informativo, la comprensión del poder requiere un método riguroso. <strong>RealPolitik</strong> no es un espacio de opinión; es un centro de disección estructural. Abordamos la intersección donde las dinámicas de los mercados financieros y la macroeconomía chocan contra la cruda arquitectura de la política de Estados y el diseño de las instituciones.</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="hero-container"><h1 class="titulo-header">REALPOLITIK</h1><p class="subtitulo-header">Economía, Geopolítica & Análisis de Poder</p></div>""", unsafe_allow_html=True)
+    st.markdown("""<div class="declaracion-manifiesto">En un entorno global definido por la volatilidad sistémica, los sesgos ideológicos y la saturación de ruido informativo, la comprensión del poder requiere un método riguroso. <strong>RealPolitik</strong> no es un espacio de opinión; mostramos la realidad, los datos y análisis objetivos para que tu generes tus propias perspectivas basadas en la realidad. Abordamos la intersección donde las dinámicas de los mercados financieros y la macroeconomía chocan con la arquitectura de la política de Estados y el diseño de las instituciones.</div>""", unsafe_allow_html=True)
     
     # Usamos columnas nativas que adaptan su disposición automáticamente en pantallas chicas
     col_izq, col_der = st.columns([1.2, 1.1], gap="large")
     with col_izq:
         st.markdown('<h2>El Enfoque Estructural</h2>', unsafe_allow_html=True)
         st.markdown('<div class="cita-editorial">"Las ideas guían el debate, pero las instituciones y los flujos de capital determinan el desenlace."</div>', unsafe_allow_html=True)
-        if st.button("INGRESAR AL ARCHIVO DE REPORTES COMPLETOS ➡️", use_container_width=True):
+        if st.button("EXPLORA NUESTROS ARTÍCULOS COMPLETOS AQUÍ", use_container_width=True):
             st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
             
         st.markdown("<br><div class='micro-label'>PUBLICACIONES MÁS RECIENTES</div>", unsafe_allow_html=True)
@@ -405,15 +423,15 @@ elif st.session_state.pagina_actual == "Articulos":
 
 # --- VISTA 3: AUDITORÍA IA ---
 elif st.session_state.pagina_actual == "AuditoriaIA":
-    st.markdown('<h2>Laboratorio de Auditoría de Datos</h2>', unsafe_allow_html=True)
+    st.markdown('<h2>The Briefing Room</h2>', unsafe_allow_html=True)
     api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.environ.get("GEMINI_API_KEY")
     
     col_panel, col_consola = st.columns([1, 1.4], gap="large")
     with col_panel:
-        st.markdown('<div class="micro-label">PARÁMETROS DE INDEXACIÓN</div>', unsafe_allow_html=True)
+        st.markdown('<div class="micro-label">FILTRACIÓN DE CONTENIDOS</div>', unsafe_allow_html=True)
         titulos_articulos = [info["titulo"] for info in ARTICULOS_DB.values()]
-        articulo_seleccionado = st.selectbox("Seleccionar Documento Base:", ["Todo el Corpus Disponible"] + titulos_articulos)
-        if st.button("LIMPIAR REGISTROS DE CONSOLA", use_container_width=True):
+        articulo_seleccionado = st.selectbox("Seleccionar Artículo Base:", ["Todo el Corpus Disponible"] + titulos_articulos)
+        if st.button("LIMPIAR REGISTROS DEL CHAT", use_container_width=True):
             st.session_state.historial_ia = []
             st.rerun()
 
@@ -421,27 +439,27 @@ elif st.session_state.pagina_actual == "AuditoriaIA":
         contenedor_chat = st.container(height=350, border=True)
         with contenedor_chat:
             if not st.session_state.historial_ia:
-                st.markdown(f"""<div class="globo-chat-sistema"><strong>[SISTEMA REALPOLITIK AI v2.0]</strong> Conectado exitosamente al corpus. Contexto actual establecido en: <em>{articulo_seleccionado}</em>.</div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="globo-chat-sistema"><strong>[REALAI v2.0]</strong> Basado en Gemini AI. Contexto actual establecido en: <em>{articulo_seleccionado}</em>.</div>""", unsafe_allow_html=True)
             else:
                 for msg in st.session_state.historial_ia:
                     clase = "globo-chat-usuario" if msg["rol"] == "usuario" else "globo-chat-sistema"
                     prefijo = "<strong>Analista:</strong> " if msg["rol"] == "usuario" else "<strong>RealPolitik AI:</strong> "
                     st.markdown(f"""<div class="{clase}">{prefijo}{msg['texto']}</div>""", unsafe_allow_html=True)
                     
-        prompt_usuario = st.chat_input("Escriba su requerimiento analítico...")
+        prompt_usuario = st.chat_input("Escriba su pregunta...")
         if prompt_usuario:
             if not api_key:
                 st.error("Falta la API Key en el entorno del servidor.")
                 st.stop()
             st.session_state.historial_ia.append({"rol": "usuario", "texto": prompt_usuario})
             
-            if articulo_seleccionado == "Todo el Corpus Disponible":
+            if articulo_seleccionado == "Todo el Contenido Disponible":
                 contexto_documento = "\n\n".join([f"Articulo: {a['titulo']}\nContenido: {a['contenido']}" for a in ARTICULOS_DB.values()])
             else:
                 id_art = [k for k, v in ARTICULOS_DB.items() if v["titulo"] == articulo_seleccionado][0]
                 contexto_documento = f"Articulo: {articulo_seleccionado}\nContenido: {ARTICULOS_DB[id_art]['contenido']}"
             
-            instrucciones = f"Actúas como el consultor en jefe de REALPOLITIK. Tono frío, bismarckiano. Usa el corpus:\n{contexto_documento}"
+            instrucciones = f"Actúas como el consultor/analista en jefe de REALPOLITIK. Tono frío, analítico, profundo y, sobre todo, absolutamente objetivo. Usa el corpus:\n{contexto_documento}"
             
             try:
                 client = genai.Client(api_key=api_key)
@@ -467,8 +485,8 @@ elif st.session_state.pagina_actual == "Contacto":
             correo = st.text_input("Dirección de Correo:")
             asunto = st.text_input("Asunto:")
             mensaje = st.text_area("Mensaje:")
-            if st.form_submit_button("TRANSMITIR REQUERIMIENTO ➔", use_container_width=True):
-                st.success("✔️ Requerimiento indexado exitosamente.")
+            if st.form_submit_button("Enviar Mensaje ➔", use_container_width=True):
+                st.success("Requerimiento enviado exitosamente.")
 
 # --- VISTA 5: MESA EDITORIAL INTERNA ---
 elif st.session_state.pagina_actual == "MesaEditorial":
@@ -481,7 +499,7 @@ elif st.session_state.pagina_actual == "MesaEditorial":
             with st.form("credenciales_editor"):
                 input_user = st.text_input("Nombre de Usuario Editorial:")
                 input_pass = st.text_input("Clave de Acceso Mecanizada:", type="password")
-                if st.form_submit_button("AUTENTICAR PORTAL 🔓", use_container_width=True):
+                if st.form_submit_button("AUTENTICAR PORTAL", use_container_width=True):
                     if input_user == "admin" and input_pass == "realpolitik2026":
                         st.session_state.editorial_autenticado = True
                         st.success("Acceso concedido.")
@@ -570,4 +588,4 @@ elif st.session_state.pagina_actual in ARTICULOS_DB:
         st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
 
 # PIE DE PÁGINA GLOBAL
-st.markdown("<br><br><div style='border-top: 1px solid #1e293b; padding-top: 1rem; text-align: center; font-size: 0.8rem; color: #475569; letter-spacing: 0.05em;'>REALPOLITIK INTELLIGENCE NETWORK © 2026 | DOCUMENTO DE ACCESO ABIERTO</div>", unsafe_allow_html=True)
+st.markdown("<br><br><div style='border-top: 1px solid #1e293b; padding-top: 1rem; text-align: center; font-size: 0.8rem; color: #475569; letter-spacing: 0.05em;'>REALPOLITIK INTELLIGENCE 2026 | DOCUMENTO DE ACCESO ABIERTO</div>", unsafe_allow_html=True)
