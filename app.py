@@ -75,7 +75,7 @@ if "historial_ia" not in st.session_state:
     st.session_state.historial_ia = []
 
 # =========================================================================
-# INYECCIÓN DE ESTILOS CSS AVANZADOS
+# INYECCIÓN DE ESTILOS CSS AVANZADOS & RESPONSIVOS
 # =========================================================================
 st.markdown(f"""
     <style>
@@ -92,81 +92,157 @@ st.markdown(f"""
         font-weight: 400; line-height: 1.7; color: #cbd5e1;
     }}
 
-    /* --- BARRA DE NAVEGACIÓN SUPERIOR EDITORIAL --- */
+    /* --- BARRA DE NAVEGACIÓN SUPERIOR RESPONSIVA --- */
     .nav-superior-container {{
-        display: flex; justify-content: space-between; align-items: center;
-        max-width: 1000px; margin: 0 auto; padding: 1.5rem 0; gap: 1rem;
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center;
+        max-width: 1000px; 
+        margin: 0 auto; 
+        padding: 1.5rem 0; 
+        gap: 1rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }}
+    .nav-superior-container::-webkit-scrollbar {{
+        display: none; /* Ocultar barra en móviles para diseño limpio */
     }}
     .nav-enlace {{
-        font-family: 'Instrument Serif', serif !important; font-size: 1.65rem !important;
-        color: #64748b !important; text-decoration: none !important; transition: color 0.2s ease;
-        background: none; border: none; cursor: pointer; white-space: nowrap;
+        font-family: 'Instrument Serif', serif !important; 
+        font-size: 1.65rem !important;
+        color: #64748b !important; 
+        text-decoration: none !important; 
+        transition: color 0.2s ease;
+        background: none; 
+        border: none; 
+        cursor: pointer; 
+        white-space: nowrap;
+        padding: 0.2rem 0.5rem;
     }}
     .nav-enlace:hover {{ color: #ffffff !important; }}
-    .nav-enlace-activo {{ color: #ffffff !important; border-bottom: 1px solid #ffffff; }}
+    .nav-enlace-activo {{ color: #ffffff !important; border-bottom: 2px solid #ffffff; }}
 
-    /* --- PORTADA EN BLOQUE HERO --- */
+    /* --- PORTADA EN BLOQUE HERO RESPONSIVO --- */
     .hero-container {{
-        width: 100%; height: 42vh;
-        background-image: linear-gradient(to bottom, rgba(11, 13, 16, 0.3) 0%, rgba(11, 13, 16, 1) 100%), url('{URL_HERO_NUEVA}');
-        background-repeat: no-repeat; background-position: center center; background-size: cover;
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        margin-bottom: 2.5rem; padding: 2rem; border-radius: 12px; border: 1px solid #1e293b;
+        width: 100%; 
+        min-height: 30vh;
+        height: auto;
+        background-image: linear-gradient(to bottom, rgba(11, 13, 16, 0.4) 0%, rgba(11, 13, 16, 1) 100%), url('{URL_HERO_NUEVA}');
+        background-repeat: no-repeat; 
+        background-position: center center; 
+        background-size: cover;
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        align-items: center;
+        margin-bottom: 2.5rem; 
+        padding: 3rem 1.5rem; 
+        border-radius: 12px; 
+        border: 1px solid #1e293b;
     }}
     .titulo-header {{
-        font-family: 'Instrument Serif', serif !important; font-size: 5.5rem !important;
-        font-weight: 400; text-align: center; letter-spacing: 0.05em; margin: 0; color: #ffffff;
-        text-transform: uppercase; text-shadow: 3px 3px 20px rgba(0,0,0,0.9);
+        font-family: 'Instrument Serif', serif !important; 
+        font-size: 5.5rem !important;
+        font-weight: 400; 
+        text-align: center; 
+        letter-spacing: 0.05em; 
+        margin: 0; 
+        color: #ffffff;
+        text-transform: uppercase; 
+        text-shadow: 3px 3px 20px rgba(0,0,0,0.9);
+        line-height: 1;
     }}
     .subtitulo-header {{
-        font-family: 'Instrument Serif', serif !important; font-size: 2.2rem !important;
-        font-style: italic; text-align: center; color: #e2e8f0; margin-top: 0.5rem; margin-bottom: 0;
+        font-family: 'Instrument Serif', serif !important; 
+        font-size: 2.2rem !important;
+        font-style: italic; 
+        text-align: center; 
+        color: #e2e8f0; 
+        margin-top: 1rem; 
+        margin-bottom: 0;
         text-shadow: 2px 2px 15px rgba(0,0,0,0.9);
+        line-height: 1.2;
     }}
 
     .declaracion-manifiesto {{
-        font-family: 'Inter', sans-serif !important; font-size: 1.25rem !important;
-        font-weight: 300 !important; line-height: 1.8; color: #e2e8f0; text-align: justify;
-        border-bottom: 1px solid #1e293b; padding-bottom: 2rem; margin-bottom: 2rem;
+        font-family: 'Inter', sans-serif !important; 
+        font-size: 1.25rem !important;
+        font-weight: 300 !important; 
+        line-height: 1.8; 
+        color: #e2e8f0; 
+        text-align: justify;
+        border-bottom: 1px solid #1e293b; 
+        padding-bottom: 2rem; 
+        margin-bottom: 2rem;
     }}
     .cita-editorial {{
-        font-family: 'Instrument Serif', serif !important; font-size: 2.8rem !important;
-        line-height: 1.2; color: #ffffff; font-style: italic; margin-top: 1.5rem; margin-bottom: 1.5rem; text-align: left;
+        font-family: 'Instrument Serif', serif !important; 
+        font-size: 2.8rem !important;
+        line-height: 1.2; 
+        color: #ffffff; 
+        font-style: italic; 
+        margin-top: 1.5rem; 
+        margin-bottom: 1.5rem; 
+        text-align: left;
     }}
     h2, .stMarkdown h2 {{
-        font-family: 'Instrument Serif', serif !important; font-size: 2.5rem !important;
-        font-weight: 400 !important; color: #ffffff !important; margin-top: 0.5rem !important; margin-bottom: 1.5rem !important;
+        font-family: 'Instrument Serif', serif !important; 
+        font-size: 2.5rem !important;
+        font-weight: 400 !important; 
+        color: #ffffff !important; 
+        margin-top: 0.5rem !important; 
+        margin-bottom: 1.5rem !important;
     }}
 
-    /* --- TARJETAS --- */
+    /* --- TARJETAS FLEXIBLES --- */
     .tarjeta-analitica {{
-        position: relative; border: 1px solid #1e293b; border-radius: 8px; padding: 2rem; margin-bottom: 1.5rem;
-        background-size: cover; background-position: center; overflow: hidden; transition: transform 0.3s ease, border-color 0.3s ease;
+        position: relative; 
+        border: 1px solid #1e293b; 
+        border-radius: 8px; 
+        padding: 2rem; 
+        margin-bottom: 1.5rem;
+        background-size: cover; 
+        background-position: center; 
+        overflow: hidden; 
+        transition: transform 0.3s ease, border-color 0.3s ease;
     }}
     .tarjeta-analitica:hover {{ transform: translateY(-4px); border-color: #334155; }}
     .tarjeta-1 {{ background-image: linear-gradient(to right, rgba(11, 13, 16, 0.95) 50%, rgba(11, 13, 16, 0.4) 100%), url('https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=800&auto=format&fit=crop'); }}
     .tarjeta-2 {{ background-image: linear-gradient(to right, rgba(11, 13, 16, 0.95) 50%, rgba(11, 13, 16, 0.4) 100%), url('https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=800&auto=format&fit=crop'); }}
     .tarjeta-3 {{ background-image: linear-gradient(to right, rgba(11, 13, 16, 0.95) 50%, rgba(11, 13, 16, 0.3) 100%), url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop'); cursor: pointer; }}
     .tarjeta-analitica h4 {{ font-family: 'Instrument Serif', serif !important; font-size: 1.9rem !important; color: #ffffff; margin-top: 0; margin-bottom: 0.75rem; }}
-    .tarjeta-analitica p {{ font-size: 0.92rem; color: #cbd5e1; margin-bottom: 0; max-width: 85%; }}
+    .tarjeta-analitica p {{ font-size: 0.92rem; color: #cbd5e1; margin-bottom: 0; max-width: 100%; }}
 
     /* --- COMPONENTES MENORES --- */
     .mini-cubiculo-link {{ text-decoration: none !important; color: inherit !important; display: block; height: 100%; }}
     .mini-cubiculo {{
-        background: #11141a; border: 1px solid #1e293b; border-radius: 6px; padding: 1.2rem; height: 100%;
+        background: #11141a; 
+        border: 1px solid #1e293b; 
+        border-radius: 6px; 
+        padding: 1.2rem; 
+        height: 100%;
         transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        margin-bottom: 1rem;
     }}
     .mini-cubiculo:hover {{ background: #161a22; border-color: #475569; transform: translateY(-2px); }}
     .mini-cubiculo h5 {{ font-family: 'Instrument Serif', serif !important; font-size: 1.35rem !important; color: #ffffff; margin-top: 0.2rem; margin-bottom: 0.5rem; line-height: 1.2; }}
     .micro-label {{ font-family: 'Inter', sans-serif !important; font-size: 0.72rem !important; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; margin-bottom: 0.3rem; }}
 
-    /* --- FILAS EDITORIALES --- */
-    .reporte-fila {{ display: flex; justify-content: space-between; align-items: center; padding: 2.5rem 0; border-bottom: 1px solid #1e293b; gap: 3rem; }}
+    /* --- FILAS EDITORIALES LÍQUIDAS --- */
+    .reporte-fila {{ 
+        display: flex; 
+        flex-direction: row;
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 2.5rem 0; 
+        border-bottom: 1px solid #1e293b; 
+        gap: 3rem; 
+    }}
     .reporte-info-bloque {{ flex: 1.4; }}
-    .reporte-imagen-bloque {{ flex: 0.8; height: 200px; border-radius: 6px; overflow: hidden; border: 1px solid #1e293b; }}
+    .reporte-imagen-bloque {{ flex: 0.8; height: 200px; border-radius: 6px; overflow: hidden; border: 1px solid #1e293b; width: 100%; }}
     .reporte-imagen-bloque img {{ width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }}
     .reporte-fila:hover .reporte-imagen-bloque img {{ transform: scale(1.03); }}
-    .reporte-meta {{ display: flex; gap: 1.5rem; font-size: 0.75rem; color: #64748b; font-weight: 500; letter-spacing: 0.05em; margin-bottom: 0.5rem; }}
+    .reporte-meta {{ display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.75rem; color: #64748b; font-weight: 500; letter-spacing: 0.05em; margin-bottom: 0.5rem; }}
     .reporte-titulo {{ font-family: 'Instrument Serif', serif !important; font-size: 2.2rem !important; color: #ffffff !important; line-height: 1.15; margin-top: 0.2rem; margin-bottom: 0.75rem; text-decoration: none !important; }}
     .reporte-titulo:hover {{ color: #cbd5e1 !important; }}
     .reporte-sinopsis {{ font-size: 0.92rem; color: #94a3b8; line-height: 1.6; text-align: justify; }}
@@ -174,6 +250,50 @@ st.markdown(f"""
     /* --- CHAT --- */
     .globo-chat-usuario {{ background: #1e293b; border: 1px solid #334155; padding: 1rem; border-radius: 8px 8px 0px 8px; margin-bottom: 1rem; color: #f1f5f9; font-size: 0.9rem; }}
     .globo-chat-sistema {{ background: #11141a; border: 1px solid #1e293b; padding: 1rem; border-radius: 8px 8px 8px 0px; margin-bottom: 1rem; color: #cbd5e1; font-size: 0.9rem; border-left: 3px solid #64748b; }}
+
+    /* =========================================================================
+       SOPORTE ESPECÍFICO PARA DISPOSITIVOS MÓVILES (MEDIA QUERIES)
+       ========================================================================= */
+    @media (max-width: 768px) {{
+        .nav-superior-container {{
+            justify-content: flex-start;
+            padding: 1rem 0.5rem;
+        }}
+        .nav-enlace {{
+            font-size: 1.25rem !important;
+        }}
+        .hero-container {{
+            padding: 2rem 1rem;
+            min-height: 20vh;
+        }}
+        .titulo-header {{
+            font-size: 2.5rem !important;
+        }}
+        .subtitulo-header {{
+            font-size: 1.35rem !important;
+        }}
+        .declaracion-manifiesto {{
+            font-size: 1.1rem !important;
+            text-align: left;
+        }}
+        .cita-editorial {{
+            font-size: 1.8rem !important;
+        }}
+        .reporte-fila {{
+            flex-direction: column-reverse !important;
+            gap: 1.5rem;
+            padding: 1.5rem 0;
+        }}
+        .reporte-imagen-bloque {{
+            height: 180px;
+        }}
+        .reporte-titulo {{
+            font-size: 1.75rem !important;
+        }}
+        .tarjeta-analitica h4 {{
+            font-size: 1.5rem !important;
+        }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -190,9 +310,9 @@ st.markdown(f"""
     <div class="nav-superior-container">
         <a href="?nav=Inicio" target="_self" class="nav-enlace {activo_inicio}">Menú Principal</a>
         <a href="?nav=Articulos" target="_self" class="nav-enlace {activo_articulos}">Portal de Artículos</a>
-        <a href="?nav=AuditoriaIA" target="_self" class="nav-enlace {activo_ia}">Auditoría de Datos (IA)</a>
+        <a href="?nav=AuditoriaIA" target="_self" class="nav-enlace {activo_ia}">Auditoría (IA)</a>
         <a href="?nav=Contacto" target="_self" class="nav-enlace {activo_contacto}">Contacto</a>
-        <a href="?nav=MesaEditorial" target="_self" class="nav-enlace {activo_editorial}">Mesa Editorial 🔐</a>
+        <a href="?nav=MesaEditorial" target="_self" class="nav-enlace {activo_editorial}">Mesa Editorial</a>
     </div>
     <hr style="border-top: 1px solid #1e293b; margin-top:0rem; margin-bottom:2.5rem;">
 """, unsafe_allow_html=True)
@@ -202,7 +322,7 @@ st.markdown(f"""
 # =========================================================================
 with st.sidebar:
     st.markdown('<div class="micro-label">Navegación del Sistema</div>', unsafe_allow_html=True)
-    opciones_sidebar = ["🏛️ Inicio", "📄 Archivo de Artículos", "🤖 Laboratorio de Auditoría (IA)", "✉️ Contacto Oficial", "🔐 Mesa Editorial"]
+    opciones_sidebar = ["Inicio", "Archivo de Artículos", "Laboratorio de Auditoría (IA)", "Contacto Oficial", "Mesa Editorial"]
     
     idx_defecto = 0
     if st.session_state.pagina_actual == "Articulos" or st.session_state.pagina_actual.startswith("Art_"):
@@ -216,15 +336,15 @@ with st.sidebar:
         
     seleccion = st.sidebar.radio("Ir a:", opciones_sidebar, index=idx_defecto)
     
-    if seleccion == "🏛️ Inicio" and st.session_state.pagina_actual != "Inicio":
+    if seleccion == "Inicio" and st.session_state.pagina_actual != "Inicio":
         st.session_state.pagina_actual = "Inicio"; st.query_params["nav"] = "Inicio"; st.rerun()
-    elif seleccion == "📄 Archivo de Artículos" and not st.session_state.pagina_actual.startswith("Art"):
+    elif seleccion == "Archivo de Artículos" and not st.session_state.pagina_actual.startswith("Art"):
         st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
-    elif seleccion == "🤖 Laboratorio de Auditoría (IA)" and st.session_state.pagina_actual != "AuditoriaIA":
+    elif seleccion == "Laboratorio de Auditoría (IA)" and st.session_state.pagina_actual != "AuditoriaIA":
         st.session_state.pagina_actual = "AuditoriaIA"; st.query_params["nav"] = "AuditoriaIA"; st.rerun()
-    elif seleccion == "✉️ Contacto Oficial" and st.session_state.pagina_actual != "Contacto":
+    elif seleccion == "Contacto Oficial" and st.session_state.pagina_actual != "Contacto":
         st.session_state.pagina_actual = "Contacto"; st.query_params["nav"] = "Contacto"; st.rerun()
-    elif seleccion == "🔐 Mesa Editorial" and st.session_state.pagina_actual != "MesaEditorial":
+    elif seleccion == "Mesa Editorial" and st.session_state.pagina_actual != "MesaEditorial":
         st.session_state.pagina_actual = "MesaEditorial"; st.query_params["nav"] = "MesaEditorial"; st.rerun()
 
 # =========================================================================
@@ -236,6 +356,7 @@ if st.session_state.pagina_actual == "Inicio":
     st.markdown(f"""<div class="hero-container"><h1 class="titulo-header">REALPOLITIK</h1><p class="subtitulo-header">Macroeconomics, Geopolitics & Structural Analysis</p></div>""", unsafe_allow_html=True)
     st.markdown("""<div class="declaracion-manifiesto">En un entorno global definido por la volatilidad sistémica, los sesgos ideológicos y la saturación de ruido informativo, la comprensión del poder requiere un método riguroso. <strong>RealPolitik</strong> no es un espacio de opinión; es un centro de disección estructural. Abordamos la intersección donde las dinámicas de los mercados financieros y la macroeconomía chocan contra la cruda arquitectura de la política de Estados y el diseño de las instituciones.</div>""", unsafe_allow_html=True)
     
+    # Usamos columnas nativas que adaptan su disposición automáticamente en pantallas chicas
     col_izq, col_der = st.columns([1.2, 1.1], gap="large")
     with col_izq:
         st.markdown('<h2>El Enfoque Estructural</h2>', unsafe_allow_html=True)
@@ -244,20 +365,19 @@ if st.session_state.pagina_actual == "Inicio":
             st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
             
         st.markdown("<br><div class='micro-label'>PUBLICACIONES MÁS RECIENTES</div>", unsafe_allow_html=True)
+        
+        # Grid adaptativo para los tres artículos de abajo
         claves = list(ARTICULOS_DB.keys())[-3:]
-        cols = st.columns(max(1, len(claves)))
-        for idx, k in enumerate(claves):
-            with cols[idx]:
-                st.markdown(f"""<a href="?nav={k}" target="_self" class="mini-cubiculo-link"><div class="mini-cubiculo"><div class="micro-label">{ARTICULOS_DB[k]["fecha"]}</div><h5>{ARTICULOS_DB[k]["titulo"]}</h5><p style="font-size:0.78rem; color:#94a3b8; line-height:1.4;">{ARTICULOS_DB[k]["sinopsis"][:45]}...</p></div></a>""", unsafe_allow_html=True)
+        for k in claves:
+            st.markdown(f"""<a href="?nav={k}" target="_self" class="mini-cubiculo-link"><div class="mini-cubiculo"><div class="micro-label">{ARTICULOS_DB[k]["fecha"]}</div><h5>{ARTICULOS_DB[k]["titulo"]}</h5><p style="font-size:0.78rem; color:#94a3b8; line-height:1.4;">{ARTICULOS_DB[k]["sinopsis"][:55]}...</p></div></a>""", unsafe_allow_html=True)
 
     with col_der:
         st.markdown('<h2>Líneas de Investigación</h2>', unsafe_allow_html=True)
         st.markdown("""<div class="tarjeta-analitica tarjeta-1"><div class="micro-label" style="color: #94a3b8;">ÁREA TÉCNICA I</div><h4>Geopolítica Monetaria & Mercados</h4><p>Modelado e investigación de la hegemonía del dólar, mecánicas de mercado y bancos centrales.</p></div>""", unsafe_allow_html=True)
         st.markdown("""<div class="tarjeta-analitica tarjeta-2"><div class="micro-label" style="color: #94a3b8;">ÁREA TÉCNICA II</div><h4>Weltpolitik & Teoría del Estado</h4><p>Análisis de riesgo y proyecciones de poder bajo la óptica de la estabilidad institucional.</p></div>""", unsafe_allow_html=True)
         
-        # --- RECUADRO RESTAURADO: REDIRECCIÓN AL MÓDULO DE IA ---
         st.markdown("""<div class="tarjeta-analitica tarjeta-3"><div class="micro-label" style="color: #cbd5e1;">LABORATORIO DE CÓMPUTO</div><h4>Auditoría de Datos con Inteligencia Artificial</h4><p>Acceder a la terminal de indexación avanzada para interrogar nuestro corpus completo de reportes institucionales mediante redes neuronales. Click abajo para iniciar la consola.</p></div>""", unsafe_allow_html=True)
-        if st.button("INICIAR AUDITORÍA DE DATOS (IA) 🤖", use_container_width=True):
+        if st.button("INICIAR AUDITORÍA DE DATOS (IA)", use_container_width=True):
             st.session_state.pagina_actual = "AuditoriaIA"
             st.query_params["nav"] = "AuditoriaIA"
             st.rerun()
@@ -347,10 +467,10 @@ elif st.session_state.pagina_actual == "Contacto":
             correo = st.text_input("Dirección de Correo:")
             asunto = st.text_input("Asunto:")
             mensaje = st.text_area("Mensaje:")
-            if st.form_submit_button("TRANSMITIR REQUERIMIENTO ➔"):
+            if st.form_submit_button("TRANSMITIR REQUERIMIENTO ➔", use_container_width=True):
                 st.success("✔️ Requerimiento indexado exitosamente.")
 
-# --- VISTA 5: MESA EDITORIAL INTERNA (AUTENTICADA Y PERSISTENTE) ---
+# --- VISTA 5: MESA EDITORIAL INTERNA ---
 elif st.session_state.pagina_actual == "MesaEditorial":
     st.markdown('<h2>Mesa Editorial y Control de Contenido</h2>', unsafe_allow_html=True)
     
@@ -361,7 +481,7 @@ elif st.session_state.pagina_actual == "MesaEditorial":
             with st.form("credenciales_editor"):
                 input_user = st.text_input("Nombre de Usuario Editorial:")
                 input_pass = st.text_input("Clave de Acceso Mecanizada:", type="password")
-                if st.form_submit_button("AUTENTICAR PORTAL 🔓"):
+                if st.form_submit_button("AUTENTICAR PORTAL 🔓", use_container_width=True):
                     if input_user == "admin" and input_pass == "realpolitik2026":
                         st.session_state.editorial_autenticado = True
                         st.success("Acceso concedido.")
@@ -384,7 +504,7 @@ elif st.session_state.pagina_actual == "MesaEditorial":
             new_img = st.text_input("URL de Imagen de Portada (Unsplash / Wikimedia):", value="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=800&auto=format&fit=crop")
             new_content = st.text_area("Cuerpo Estructural del Ensayo (Contenido Completo):", height=300)
             
-            if st.form_submit_button("EMITIR Y PUBLICAR REPORTE 🚀"):
+            if st.form_submit_button("EMITIR Y PUBLICAR REPORTE 🚀", use_container_width=True):
                 if not new_title or not new_content:
                     st.error("El Título y el Cuerpo del ensayo son obligatorios para la indexación.")
                 else:
@@ -408,13 +528,11 @@ elif st.session_state.pagina_actual == "MesaEditorial":
         else:
             art_a_editar = st.selectbox("Seleccione el Ensayo que desea Modificar o Retirar:", list(ARTICULOS_DB.keys()), format_func=lambda x: ARTICULOS_DB[x]["titulo"])
             
-            col_del, _ = st.columns([1, 4])
-            with col_del:
-                if st.button("🚨 ELIMINAR ARTÍCULO DEFINITIVAMENTE", use_container_width=True):
-                    del ARTICULOS_DB[art_a_editar]
-                    guardar_articulos(ARTICULOS_DB)
-                    st.warning("Artículo removido del registro.")
-                    st.rerun()
+            if st.button("🚨 ELIMINAR ARTÍCULO DEFINITIVAMENTE", use_container_width=True):
+                del ARTICULOS_DB[art_a_editar]
+                guardar_articulos(ARTICULOS_DB)
+                st.warning("Artículo removido del registro.")
+                st.rerun()
             
             st.markdown("<hr style='border-top: 1px solid #1e293b;'>", unsafe_allow_html=True)
             
@@ -426,7 +544,7 @@ elif st.session_state.pagina_actual == "MesaEditorial":
                 edit_img = st.text_input("Modificar URL Imagen:", value=ARTICULOS_DB[art_a_editar]["imagen"])
                 edit_content = st.text_area("Modificar Contenido Completo:", value=ARTICULOS_DB[art_a_editar]["contenido"], height=250)
                 
-                if st.form_submit_button("SALVAGUARDAR CAMBIOS EDITORIALES 💾"):
+                if st.form_submit_button("SALVAGUARDAR CAMBIOS EDITORIALES 💾", use_container_width=True):
                     ARTICULOS_DB[art_a_editar] = {
                         "titulo": edit_title,
                         "fecha": edit_date.upper(),
@@ -443,12 +561,12 @@ elif st.session_state.pagina_actual == "MesaEditorial":
 elif st.session_state.pagina_actual in ARTICULOS_DB:
     art_info = ARTICULOS_DB[st.session_state.pagina_actual]
     st.markdown(f"<p style='color: #64748b; font-size: 0.8rem; font-weight: 600; letter-spacing:0.12em;'>{art_info['fecha']} | {art_info['categoria'].upper()}</p>", unsafe_allow_html=True)
-    st.markdown(f"<h1 style='font-family: \"Instrument Serif\", serif; font-size: 4rem; color: white; line-height: 1.1; margin-bottom: 2rem;'>{art_info['titulo']}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='font-family: \"Instrument Serif\", serif; font-size: 3rem; color: white; line-height: 1.1; margin-bottom: 2rem;'>{art_info['titulo']}</h1>", unsafe_allow_html=True)
     st.image(art_info['imagen'], use_container_width=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f"<p style='font-size: 1.15rem; color: #e2e8f0; line-height: 1.8; text-align: justify;'>{art_info['contenido']}</p>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size: 1.15rem; color: #e2e8f0; line-height: 1.8; text-align: justify;'>{art_info['contenido']}</div>", unsafe_allow_html=True)
     st.markdown("<br><hr style='border-top: 1px solid #1e293b;'><br>", unsafe_allow_html=True)
-    if st.button("⬅️ VOLVER AL ARCHIVO DE ARTÍCULOS"):
+    if st.button("⬅️ VOLVER AL ARCHIVO DE ARTÍCULOS", use_container_width=True):
         st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
 
 # PIE DE PÁGINA GLOBAL
