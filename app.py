@@ -582,10 +582,65 @@ elif st.session_state.pagina_actual in ARTICULOS_DB:
     st.markdown(f"<h1 style='font-family: \"Instrument Serif\", serif; font-size: 3rem; color: white; line-height: 1.1; margin-bottom: 2rem;'>{art_info['titulo']}</h1>", unsafe_allow_html=True)
     st.image(art_info['imagen'], use_container_width=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size: 1.15rem; color: #e2e8f0; line-height: 1.8; text-align: justify;'>{art_info['contenido']}</div>", unsafe_allow_html=True)
+    
+    contenido_completo = art_info['contenido']
+    
+    # Comprobamos si el artículo solicita explícitamente el gráfico intercalado en el texto
+    if "[GRAFICO_INTERACTIVO_RESERVAS]" in contenido_completo and "datos_grafica" in art_info and art_info["datos_grafica"].strip():
+        import pandas as pd
+        import plotly.express as px
+        import io
+        
+        # Dividir el artículo en bloque pre-gráfico y bloque post-gráfico
+        parte_alta, parte_baja = contenido_completo.split("[GRAFICO_INTERACTIVO_RESERVAS]")
+        
+        # 1. Renderizar primera parte del ensayo
+        st.markdown(f"<div style='font-size: 1.15rem; color: #e2e8f0; line-height: 1.8; text-align: justify;'>{parte_alta}</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 2. Construir y Renderizar Gráfica de Plotly Interactiva
+        try:
+            data_stream = io.StringIO(art_info["datos_grafica"].strip())
+            df = pd.read_csv(data_stream)
+            
+            fig = px.line(
+                df, 
+                x=df.columns[0], 
+                y=df.columns[1], 
+                template="plotly_dark",
+                color_discrete_sequence=["#fbbf24"] # Color dorado/ámbar para las reservas metálicas
+            )
+            
+            fig.update_layout(
+                paper_bgcolor="#0b0d10",
+                plot_bgcolor="#11141a",
+                font_family="Inter",
+                hovermode="x unified",
+                margin=dict(l=30, r=20, t=30, b=30),
+                showlegend=False
+            )
+            fig.update_xaxes(showgrid=True, gridcolor="#1e293b", linecolor="#334155", title_text="Año de Medición")
+            fig.update_yaxes(showgrid=True, gridcolor="#1e293b", linecolor="#334155", title_text="Reservas de Oro de EE.UU. (Tons)")
+            
+            st.markdown("<div class='micro-label' style='text-align:center;'>INDICADOR CRÍTICO: AGOTAMIENTO DE COLATERALES EN FORT KNOX (1944-1971)</div>", unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+        except Exception as e:
+            st.error(f"Fallo en la lectura de vectores del gráfico: {e}")
+            
+        # 3. Renderizar segunda parte del ensayo
+        st.markdown(f"<div style='font-size: 1.15rem; color: #e2e8f0; line-height: 1.8; text-align: justify;'>{parte_baja}</div>", unsafe_allow_html=True)
+        
+    else:
+        # Renderizado clásico en caso de artículos normales que no usan este marcador dinámico
+        st.markdown(f"<div style='font-size: 1.15rem; color: #e2e8f0; line-height: 1.8; text-align: justify;'>{contenido_completo}</div>", unsafe_allow_html=True)
+        
     st.markdown("<br><hr style='border-top: 1px solid #1e293b;'><br>", unsafe_allow_html=True)
     if st.button("⬅️ VOLVER AL ARCHIVO DE ARTÍCULOS", use_container_width=True):
         st.session_state.pagina_actual = "Articulos"; st.query_params["nav"] = "Articulos"; st.rerun()
 
+# PIE DE PÁGINA GLOBAL
+st.markdown("<br><br><div style='border-top: 1px solid #1e293b; padding-top: 1rem; text-align: center; font-size: 0.8rem; color: #475569; letter-spacing: 0.05em;'>REALPOLITIK INTELLIGENCE NETWORK © 2026 | DOCUMENTO DE ACCESO ABIERTO</div>", unsafe_allow_html=True)
 # PIE DE PÁGINA GLOBAL
 st.markdown("<br><br><div style='border-top: 1px solid #1e293b; padding-top: 1rem; text-align: center; font-size: 0.8rem; color: #475569; letter-spacing: 0.05em;'>REALPOLITIK INTELLIGENCE 2026 | DOCUMENTO DE ACCESO ABIERTO</div>", unsafe_allow_html=True)
