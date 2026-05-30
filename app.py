@@ -12,13 +12,8 @@ st.set_page_config(page_title="REALPOLITIK | Portal", layout="wide", initial_sid
 # =========================================================================
 # GESTIÓN DE BASE DE DATOS LOCAL (PERSISTENCIA JSON)
 # =========================================================================
-# =========================================================================
-# GESTIÓN DE BASE DE DATOS LOCAL (PERSISTENCIA JSON)
-# =========================================================================
-# =========================================================================
-# GESTIÓN DE BASE DE DATOS LOCAL (PERSISTENCIA JSON)
-# =========================================================================
-DB_FILE = \"articulos.json\"
+
+DB_FILE = "articulos.json"
 
 ARTICULOS_SEMILLA = {
     "Art_Petrodolar": {
