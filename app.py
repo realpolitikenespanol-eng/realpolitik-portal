@@ -409,7 +409,7 @@ html, body, p, li, span {{
     position: relative;
     width: 100vw;
     margin-left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(0%);
     min-height: 88vh;
     background-image:
         linear-gradient(to bottom, rgba(8,10,15,0.25) 0%, rgba(8,10,15,0.55) 55%, rgba(8,10,15,1) 100%),
