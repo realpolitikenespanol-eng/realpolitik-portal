@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import json
+from urllib.parse import quote
 from google import genai
 from google.genai import types
 
@@ -72,28 +73,33 @@ if "historial_ia" not in st.session_state:
 if "globe_countries" not in st.session_state:
     st.session_state.globe_countries = []
 
-# =========================================================================
-# SISTEMA DE DISEÑO — REALPOLITIK v2
-# Paleta: Fondo abismal · Ámbar diplomático · Pergamino frío
-# Firma: Coordenadas geográficas como localizador de análisis
-# =========================================================================
+if "filtro_articulos" not in st.session_state:
+    st.session_state.filtro_articulos = "Todos los Reportes"
 
-COORDS_POR_SECCION = {
-    "Inicio":         "38°53'N · 77°02'O",   # Washington D.C.
-    "Articulos":      "51°30'N · 00°07'O",   # Londres / The Economist
-    "AuditoriaIA":    "48°51'N · 02°21'E",   # París / análisis estratégico
-    "Contacto":       "40°25'N · 03°41'O",   # Madrid
-    "MesaEditorial":  "00°00'N · 00°00'E",   # Origen
-}
+if "fuente_ia" not in st.session_state:
+    st.session_state.fuente_ia = "Corpus + Web"
+
+if "briefing_contexto" not in st.session_state:
+    st.session_state.briefing_contexto = None
+
+if "briefing_semana" not in st.session_state:
+    st.session_state.briefing_semana = None
+
+# Si llega una solicitud de filtro vía query param (desde las tarjetas de Inicio)
+if "filtro" in st.query_params:
+    st.session_state.filtro_articulos = st.query_params["filtro"]
+    del st.query_params["filtro"]
+
+# =========================================================================
+# SISTEMA DE DISEÑO — REALPOLITIK v3
+# Paleta: Fondo abismal · Ámbar diplomático · Pergamino frío
+# =========================================================================
 
 pagina = st.session_state.pagina_actual
-coord_display = COORDS_POR_SECCION.get(pagina, "00°00'N · 00°00'E")
-if pagina in ARTICULOS_DB:
-    coord_display = "Análisis en curso · Documento Clasificado"
 
 st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ── RESET & BASE ── */
 [data-testid="stToolbar"], footer, [data-testid="stDecoration"],
@@ -111,7 +117,15 @@ st.markdown(f"""
 .block-container {{
     padding-top: 0 !important;
     padding-bottom: 3rem !important;
-    max-width: 1100px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
+}}
+.rp-content {{
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-left: 2rem;
+    padding-right: 2rem;
 }}
 
 html, body, p, li, span {{
@@ -122,38 +136,28 @@ html, body, p, li, span {{
 }}
 
 /* ── MASTHEAD ── */
+.rp-masthead-wrap {{ max-width: 1100px; margin: 0 auto; padding: 0 2rem; }}
 .rp-masthead {{
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    padding: 2.2rem 0 1.2rem 0;
+    align-items: center;
+    padding: 1.8rem 0 1.2rem 0;
     border-bottom: 1px solid #1A1F2E;
-    margin-bottom: 0;
 }}
 .rp-wordmark {{
-    font-family: 'Instrument Serif', serif !important;
-    font-size: 2rem;
-    font-weight: 400;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #E8E6E1;
-    text-decoration: none;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #E8E6E1 !important;
+    text-decoration: none !important;
 }}
-.rp-coords {{
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.7rem;
-    color: #C8A96E;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding-bottom: 0.15rem;
-}}
+.rp-wordmark:hover {{ color: #C8A96E !important; }}
 
 /* ── BARRA DE NAVEGACIÓN ── */
 .rp-nav {{
     display: flex;
     gap: 0;
-    border-bottom: 1px solid #1A1F2E;
-    margin-bottom: 3.5rem;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }}
@@ -161,21 +165,21 @@ html, body, p, li, span {{
 .rp-nav-link {{
     font-family: 'Inter', sans-serif !important;
     font-size: 0.72rem !important;
-    font-weight: 500;
-    letter-spacing: 0.14em;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #4A5568 !important;
+    color: #6B7280 !important;
     text-decoration: none !important;
-    padding: 1rem 1.5rem;
-    border-bottom: 2px solid transparent;
-    transition: color 0.2s ease, border-color 0.2s ease;
+    padding: 0.5rem 1.1rem;
+    border-radius: 3px;
+    transition: color 0.2s ease, background 0.2s ease;
     white-space: nowrap;
     display: inline-block;
 }}
 .rp-nav-link:hover {{ color: #E8E6E1 !important; }}
 .rp-nav-link.activo {{
     color: #C8A96E !important;
-    border-bottom: 2px solid #C8A96E;
+    background: rgba(200,169,110,0.08);
 }}
 
 /* ── ETIQUETA DE SECCIÓN ── */
@@ -198,63 +202,100 @@ html, body, p, li, span {{
     margin-bottom: 2.5rem;
 }}
 
-/* ── HERO ── */
+/* ── HERO FULL-BLEED ── */
 .rp-hero {{
     position: relative;
-    width: 100%;
-    min-height: 52vh;
+    width: 100vw;
+    margin-left: 50%;
+    transform: translateX(-50%);
+    min-height: 88vh;
     background-image:
-        linear-gradient(to bottom, rgba(8,10,15,0.35) 0%, rgba(8,10,15,0.75) 60%, rgba(8,10,15,1) 100%),
-        url('https://upload.wikimedia.org/wikipedia/en/thumb/e/e0/Bucarest_-_Palau_del_Parlament.png/960px-Bucarest_-_Palau_del_Parlament.png');
+        linear-gradient(to bottom, rgba(8,10,15,0.25) 0%, rgba(8,10,15,0.55) 55%, rgba(8,10,15,1) 100%),
+        url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1800&auto=format&fit=crop');
     background-size: cover;
-    background-position: center 30%;
+    background-position: center 40%;
+    background-attachment: fixed;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    padding: 3rem 3.5rem;
-    margin-bottom: 3.5rem;
-    border-radius: 4px;
-    border: 1px solid #1A1F2E;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 3rem 1.5rem;
     overflow: hidden;
 }}
-.rp-hero::before {{
-    content: '';
-    position: absolute;
-    top: 1.2rem; left: 1.5rem;
+.rp-hero-eyebrow {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    color: #C8A96E;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}}
+.rp-pulse-dot {{
     width: 6px; height: 6px;
     border-radius: 50%;
     background: #C8A96E;
+    display: inline-block;
     animation: pulse-dot 2.5s ease-in-out infinite;
 }}
 @keyframes pulse-dot {{
     0%, 100% {{ opacity: 1; transform: scale(1); }}
     50% {{ opacity: 0.3; transform: scale(0.6); }}
 }}
-.rp-hero-eyebrow {{
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.65rem;
-    letter-spacing: 0.18em;
-    color: #C8A96E;
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-}}
 .rp-hero-title {{
     font-family: 'Instrument Serif', serif !important;
-    font-size: clamp(3rem, 7vw, 6rem);
+    font-size: clamp(4rem, 11vw, 9rem);
     font-weight: 400;
     color: #FFFFFF;
     line-height: 0.95;
-    letter-spacing: -0.01em;
-    margin: 0 0 1rem 0;
-    text-shadow: 0 4px 40px rgba(0,0,0,0.6);
+    letter-spacing: 0.01em;
+    margin: 0 0 1.2rem 0;
+    text-shadow: 0 4px 60px rgba(0,0,0,0.7);
+    white-space: nowrap;
 }}
 .rp-hero-tagline {{
-    font-family: 'Instrument Serif', serif !important;
-    font-size: 1.3rem;
-    font-style: italic;
+    font-family: 'Inter', sans-serif !important;
+    font-size: clamp(0.95rem, 1.6vw, 1.2rem);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: #C5C2BB;
+    margin: 0 0 3rem 0;
+    max-width: 560px;
+}}
+.rp-scroll-cue {{
+    position: absolute;
+    bottom: 2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    animation: float-cue 2.4s ease-in-out infinite;
+}}
+.rp-scroll-cue span {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
     color: #94A3B8;
-    margin: 0;
-    max-width: 520px;
+}}
+.rp-scroll-cue svg {{ width: 16px; height: 24px; }}
+@keyframes float-cue {{
+    0%, 100% {{ transform: translate(-50%, 0); opacity: 0.6; }}
+    50% {{ transform: translate(-50%, 8px); opacity: 1; }}
+}}
+
+/* ── REVEAL AL HACER SCROLL ── */
+.rp-reveal {{
+    animation: rise-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}}
+@keyframes rise-in {{
+    from {{ opacity: 0; transform: translateY(28px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
 }}
 
 /* ── MANIFIESTO ── */
@@ -281,43 +322,60 @@ html, body, p, li, span {{
     border-bottom: 1px solid #1A1F2E;
 }}
 
-/* ── TARJETAS DE INVESTIGACIÓN ── */
-.rp-linea-card {{
-    border: 1px solid #1A1F2E;
-    border-radius: 3px;
-    padding: 2rem;
+/* ── TARJETAS DE INVESTIGACIÓN (con foto de fondo, clicables) ── */
+.rp-linea-card-link {{
+    text-decoration: none !important;
+    display: block;
     margin-bottom: 1rem;
-    background: #0D1117;
+}}
+.rp-linea-card {{
+    position: relative;
+    border: 1px solid #1A1F2E;
+    border-radius: 4px;
+    padding: 2.2rem;
+    min-height: 190px;
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
     transition: border-color 0.25s ease, transform 0.25s ease;
-    cursor: default;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
 }}
 .rp-linea-card:hover {{
-    border-color: #2D3748;
-    transform: translateY(-2px);
+    border-color: #C8A96E;
+    transform: translateY(-3px);
 }}
 .rp-linea-numero {{
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.6rem;
     color: #C8A96E;
     letter-spacing: 0.2em;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.6rem;
     display: block;
+    position: relative;
+    z-index: 2;
 }}
 .rp-linea-card h4 {{
     font-family: 'Instrument Serif', serif !important;
-    font-size: 1.5rem;
-    color: #E8E6E1;
-    margin: 0 0 0.5rem 0;
+    font-size: 1.6rem;
+    color: #FFFFFF;
+    margin: 0 0 0.4rem 0;
     font-weight: 400;
+    position: relative;
+    z-index: 2;
 }}
 .rp-linea-card p {{
     font-size: 0.85rem;
-    color: #4A5568;
+    color: #C5C2BB;
     margin: 0;
     line-height: 1.6;
+    position: relative;
+    z-index: 2;
+    max-width: 90%;
 }}
 
-/* ── PUBLICACIONES RECIENTES (SIDEBAR) ── */
+/* ── PUBLICACIONES RECIENTES ── */
 .rp-reciente {{
     padding: 1.2rem 0;
     border-bottom: 1px solid #1A1F2E;
@@ -342,63 +400,111 @@ html, body, p, li, span {{
     margin: 0;
 }}
 
-/* ── LISTA DE ARTÍCULOS (BROADSHEET) ── */
-.rp-articulo-fila {{
-    display: grid;
-    grid-template-columns: 1fr 260px;
-    gap: 2.5rem;
-    padding: 2.5rem 0;
-    border-bottom: 1px solid #1A1F2E;
-    align-items: center;
-}}
-.rp-articulo-meta {{
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.6rem;
-    color: #4A5568;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 0.6rem;
-}}
-.rp-articulo-titulo {{
-    font-family: 'Instrument Serif', serif !important;
-    font-size: 1.9rem;
-    color: #E8E6E1 !important;
-    line-height: 1.15;
-    margin: 0 0 0.75rem 0;
-    text-decoration: none !important;
-    display: block;
-}}
-.rp-articulo-titulo:hover {{ color: #C8A96E !important; transition: color 0.2s; }}
-.rp-articulo-sinopsis {{
-    font-size: 0.875rem;
-    color: #4A5568;
-    line-height: 1.65;
-    margin: 0 0 1rem 0;
-}}
-.rp-leer-link {{
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.65rem;
-    color: #C8A96E !important;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    text-decoration: none !important;
-    border-bottom: 1px solid #C8A96E;
-    padding-bottom: 1px;
-    transition: opacity 0.2s;
-}}
-.rp-leer-link:hover {{ opacity: 0.7; }}
-.rp-articulo-img {{
-    width: 100%;
-    height: 180px;
-    object-fit: cover;
-    border-radius: 2px;
+/* ── EXTENSIÓN BRIEFING ROOM EN INICIO ── */
+.rp-briefing-promo {{
+    position: relative;
+    border-radius: 4px;
     border: 1px solid #1A1F2E;
-    filter: grayscale(20%);
-    transition: filter 0.3s ease;
+    margin: 4rem 0 2rem 0;
+    padding: 4rem 3rem;
+    background:
+        radial-gradient(ellipse at top left, rgba(200,169,110,0.07) 0%, transparent 55%),
+        #0D1117;
+    overflow: hidden;
 }}
-.rp-articulo-fila:hover .rp-articulo-img {{ filter: grayscale(0%); }}
+.rp-briefing-promo-grid {{
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(200,169,110,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,169,110,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+}}
+.rp-briefing-promo-inner {{ position: relative; z-index: 2; }}
+.rp-briefing-promo h3 {{
+    font-family: 'Instrument Serif', serif !important;
+    font-size: 2.6rem;
+    color: #FFFFFF;
+    font-weight: 400;
+    margin: 0.6rem 0 1rem 0;
+    max-width: 600px;
+}}
+.rp-briefing-promo p {{
+    font-size: 0.95rem;
+    color: #94A3B8;
+    max-width: 540px;
+    line-height: 1.75;
+    margin-bottom: 0;
+}}
+.rp-briefing-feature-row {{
+    display: flex;
+    gap: 2.5rem;
+    margin-top: 2.2rem;
+    flex-wrap: wrap;
+}}
+.rp-briefing-feature {{
+    flex: 1;
+    min-width: 180px;
+}}
+.rp-briefing-feature-num {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.62rem;
+    color: #C8A96E;
+    letter-spacing: 0.15em;
+}}
+.rp-briefing-feature h5 {{
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #E8E6E1;
+    margin: 0.4rem 0 0.3rem 0;
+}}
+.rp-briefing-feature p {{
+    font-size: 0.8rem;
+    color: #4A5568;
+    line-height: 1.6;
+}}
 
-/* ── BRIEFING ROOM (CHAT + GLOBO) ── */
+/* ── BRIEFING ROOM — COLUMNAS DE INTELIGENCIA ── */
+.rp-intel-col {{
+    border: 1px solid #1A1F2E;
+    border-radius: 3px;
+    background: #0D1117;
+    padding: 1.5rem;
+    height: 100%;
+}}
+.rp-intel-header {{
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid #1A1F2E;
+}}
+.rp-intel-title {{
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #E8E6E1;
+}}
+.rp-intel-body {{
+    font-size: 0.88rem;
+    color: #B0AEA9;
+    line-height: 1.75;
+}}
+.rp-intel-body strong {{ color: #C8A96E; font-weight: 600; }}
+.rp-intel-empty {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem;
+    color: #2D3748;
+    letter-spacing: 0.05em;
+    line-height: 1.8;
+}}
+
+/* ── BRIEFING ROOM (CHAT) ── */
 .rp-briefing-header {{
     display: flex;
     align-items: center;
@@ -486,11 +592,68 @@ html, body, p, li, span {{
 }}
 .rp-lectura-body strong {{ color: #E8E6E1; font-weight: 600; }}
 
+/* ── LISTA DE ARTÍCULOS (BROADSHEET) ── */
+.rp-articulo-fila {{
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 2.5rem;
+    padding: 2.5rem 0;
+    border-bottom: 1px solid #1A1F2E;
+    align-items: center;
+}}
+.rp-articulo-meta {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.6rem;
+    color: #4A5568;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+}}
+.rp-articulo-titulo {{
+    font-family: 'Instrument Serif', serif !important;
+    font-size: 1.9rem;
+    color: #E8E6E1 !important;
+    line-height: 1.15;
+    margin: 0 0 0.75rem 0;
+    text-decoration: none !important;
+    display: block;
+}}
+.rp-articulo-titulo:hover {{ color: #C8A96E !important; transition: color 0.2s; }}
+.rp-articulo-sinopsis {{
+    font-size: 0.875rem;
+    color: #4A5568;
+    line-height: 1.65;
+    margin: 0 0 1rem 0;
+}}
+.rp-leer-link {{
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.65rem;
+    color: #C8A96E !important;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: none !important;
+    border-bottom: 1px solid #C8A96E;
+    padding-bottom: 1px;
+    transition: opacity 0.2s;
+}}
+.rp-leer-link:hover {{ opacity: 0.7; }}
+.rp-articulo-img {{
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid #1A1F2E;
+    filter: grayscale(20%);
+    transition: filter 0.3s ease;
+}}
+.rp-articulo-fila:hover .rp-articulo-img {{ filter: grayscale(0%); }}
+
 /* ── PIE DE PÁGINA ── */
 .rp-footer {{
+    max-width: 1100px;
+    margin: 4rem auto 0 auto;
+    padding: 1.5rem 2rem 0 2rem;
     border-top: 1px solid #1A1F2E;
-    padding-top: 1.5rem;
-    margin-top: 4rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -520,6 +683,16 @@ html, body, p, li, span {{
     border-color: #C8A96E !important;
     color: #C8A96E !important;
     background: transparent !important;
+}}
+.rp-btn-grande button {{
+    border: 1px solid #C8A96E !important;
+    color: #C8A96E !important;
+    padding: 0.95rem 1.5rem !important;
+    font-size: 0.75rem !important;
+}}
+.rp-btn-grande button:hover {{
+    background: #C8A96E !important;
+    color: #080A0F !important;
 }}
 
 /* ── INPUTS ── */
@@ -580,6 +753,14 @@ html, body, p, li, span {{
     border-bottom: 2px solid #C8A96E !important;
 }}
 
+/* ── RADIO (fuente IA) ── */
+.stRadio > div {{ gap: 0.4rem !important; }}
+.stRadio label {{
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.85rem !important;
+    color: #94A3B8 !important;
+}}
+
 /* ── CONTAINER CHAT ── */
 [data-testid="stVerticalBlockBorderWrapper"] {{
     background: #0D1117 !important;
@@ -595,11 +776,6 @@ html, body, p, li, span {{
     letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
 }}
-.stRadio label {{
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.85rem !important;
-    color: #94A3B8 !important;
-}}
 h2, h3 {{
     font-family: 'Instrument Serif', serif !important;
     color: #E8E6E1 !important;
@@ -608,13 +784,16 @@ h2, h3 {{
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {{
-    .rp-hero {{ padding: 2rem 1.5rem; min-height: 40vh; }}
-    .rp-hero-title {{ font-size: 2.8rem; }}
+    .rp-hero {{ padding: 2rem 1.2rem; min-height: 78vh; background-attachment: scroll; }}
+    .rp-hero-title {{ font-size: 3.4rem; white-space: normal; }}
     .rp-articulo-fila {{ grid-template-columns: 1fr; }}
     .rp-articulo-img {{ height: 200px; }}
-    .rp-masthead {{ flex-direction: column; align-items: flex-start; gap: 0.5rem; }}
+    .rp-masthead {{ flex-direction: row; align-items: center; }}
+    .rp-nav-link {{ font-size: 0.66rem !important; padding: 0.4rem 0.7rem; }}
     .rp-cita {{ font-size: 1.6rem; }}
     .rp-lectura-body {{ font-size: 1rem; }}
+    .rp-briefing-promo {{ padding: 2.5rem 1.5rem; }}
+    .rp-briefing-promo h3 {{ font-size: 1.9rem; }}
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -636,11 +815,12 @@ for key, label in paginas.items():
     nav_links += f'<a href="?nav={key}" target="_self" class="rp-nav-link {css_activo}">{label}</a>'
 
 st.markdown(f"""
-<div class="rp-masthead">
-    <a href="?nav=Inicio" target="_self" class="rp-wordmark">Realpolitik</a>
-    <span class="rp-coords">{coord_display}</span>
+<div class="rp-masthead-wrap">
+    <div class="rp-masthead">
+        <a href="?nav=Inicio" target="_self" class="rp-wordmark">REALPOLITIK</a>
+        <nav class="rp-nav">{nav_links}</nav>
+    </div>
 </div>
-<nav class="rp-nav">{nav_links}</nav>
 """, unsafe_allow_html=True)
 
 
@@ -651,11 +831,20 @@ if st.session_state.pagina_actual == "Inicio":
 
     st.markdown("""
     <div class="rp-hero">
-        <p class="rp-hero-eyebrow">⬤ &nbsp; Análisis en tiempo real · Edición 2026</p>
-        <h1 class="rp-hero-title">REAL<br>POLITIK</h1>
+        <p class="rp-hero-eyebrow"><span class="rp-pulse-dot"></span> Análisis en tiempo real · Edición 2026</p>
+        <h1 class="rp-hero-title">REALPOLITIK</h1>
         <p class="rp-hero-tagline">Economía, Geopolítica & Análisis de Poder</p>
+        <div class="rp-scroll-cue">
+            <span>Desplázate</span>
+            <svg viewBox="0 0 16 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="14" height="22" rx="7" stroke="#C8A96E" stroke-width="1"/>
+                <circle cx="8" cy="7" r="2" fill="#C8A96E"/>
+            </svg>
+        </div>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown('<div class="rp-content rp-reveal">', unsafe_allow_html=True)
 
     col_izq, col_der = st.columns([1.35, 1], gap="large")
 
@@ -692,34 +881,80 @@ if st.session_state.pagina_actual == "Inicio":
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown('<span class="rp-seccion-label">Líneas de Investigación</span>', unsafe_allow_html=True)
 
-        st.markdown("""
-        <div class="rp-linea-card">
-            <span class="rp-linea-numero">ÁREA I</span>
-            <h4>Geopolítica Monetaria & Mercados</h4>
-            <p>Hegemonía del dólar, mecánicas de mercado y bancos centrales.</p>
-        </div>
-        <div class="rp-linea-card">
-            <span class="rp-linea-numero">ÁREA II</span>
-            <h4>Weltpolitik & Teoría del Estado</h4>
-            <p>Análisis de riesgo y proyecciones de poder bajo la óptica de la estabilidad institucional.</p>
-        </div>
+        st.markdown(f"""
+        <a href="?nav=Articulos&filtro={quote('Geopolítica Monetaria & Mercados')}" target="_self" class="rp-linea-card-link">
+            <div class="rp-linea-card" style="background-image: linear-gradient(to top, rgba(8,10,15,0.95) 10%, rgba(8,10,15,0.35) 100%), url('https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=800&auto=format&fit=crop');">
+                <span class="rp-linea-numero">ÁREA I</span>
+                <h4>Geopolítica Monetaria & Mercados</h4>
+                <p>Hegemonía del dólar, mecánicas de mercado y bancos centrales.</p>
+            </div>
+        </a>
+        <a href="?nav=Articulos&filtro={quote('Weltpolitik & Teoría del Estado')}" target="_self" class="rp-linea-card-link">
+            <div class="rp-linea-card" style="background-image: linear-gradient(to top, rgba(8,10,15,0.95) 10%, rgba(8,10,15,0.35) 100%), url('https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=800&auto=format&fit=crop');">
+                <span class="rp-linea-numero">ÁREA II</span>
+                <h4>Weltpolitik & Teoría del Estado</h4>
+                <p>Análisis de riesgo y proyecciones de poder bajo la óptica de la estabilidad institucional.</p>
+            </div>
+        </a>
         """, unsafe_allow_html=True)
 
-        if st.button("→ Iniciar Briefing Room (IA)", use_container_width=True):
-            st.session_state.pagina_actual = "AuditoriaIA"
-            st.query_params["nav"] = "AuditoriaIA"
-            st.rerun()
+    # ── EXTENSIÓN: PROMOCIÓN DEL BRIEFING ROOM ──
+    st.markdown("""
+    <div class="rp-briefing-promo">
+        <div class="rp-briefing-promo-grid"></div>
+        <div class="rp-briefing-promo-inner">
+            <span class="rp-seccion-label">Laboratorio de Inteligencia Artificial</span>
+            <h3>The Briefing Room</h3>
+            <p>
+                Una terminal de análisis geopolítico en tiempo real. Consulta nuestro corpus editorial
+                o deja que la inteligencia artificial explore la web abierta, visualiza los focos de
+                tensión en un globo terráqueo interactivo, y recibe briefings diarios sobre el estado
+                del tablero global — generados y actualizados por IA.
+            </p>
+            <div class="rp-briefing-feature-row">
+                <div class="rp-briefing-feature">
+                    <span class="rp-briefing-feature-num">01</span>
+                    <h5>Globo Interactivo</h5>
+                    <p>Visualiza en 3D los países involucrados en cada consulta analítica.</p>
+                </div>
+                <div class="rp-briefing-feature">
+                    <span class="rp-briefing-feature-num">02</span>
+                    <h5>Briefings Automatizados</h5>
+                    <p>Contexto global y sucesos de la semana, sintetizados por IA.</p>
+                </div>
+                <div class="rp-briefing-feature">
+                    <span class="rp-briefing-feature-num">03</span>
+                    <h5>Fuentes Configurables</h5>
+                    <p>Elige si la IA responde solo con nuestro corpus o explora la web.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="rp-btn-grande">', unsafe_allow_html=True)
+    if st.button("→ Entrar al Briefing Room", use_container_width=True, key="btn_briefing_inicio"):
+        st.session_state.pagina_actual = "AuditoriaIA"
+        st.query_params["nav"] = "AuditoriaIA"
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # cierre rp-content
 
 
 # =========================================================================
 # VISTA 2: ARCHIVO DE ARTÍCULOS
 # =========================================================================
 elif st.session_state.pagina_actual == "Articulos":
+    st.markdown('<div class="rp-content">', unsafe_allow_html=True)
+    st.markdown('<br>', unsafe_allow_html=True)
     st.markdown('<span class="rp-seccion-label">Archivo Global</span>', unsafe_allow_html=True)
     st.markdown('<h2 class="rp-seccion-title">Reportes & Análisis</h2>', unsafe_allow_html=True)
 
     categorias = ["Todos los Reportes", "Geopolítica Monetaria & Mercados", "Weltpolitik & Teoría del Estado"]
-    filtro = st.pills("Filtrar por área:", categorias, default="Todos los Reportes")
+    idx_filtro = categorias.index(st.session_state.filtro_articulos) if st.session_state.filtro_articulos in categorias else 0
+    filtro = st.pills("Filtrar por área:", categorias, default=categorias[idx_filtro])
+    st.session_state.filtro_articulos = filtro
 
     for art_id, info in ARTICULOS_DB.items():
         if filtro != "Todos los Reportes" and info["categoria"] != filtro:
@@ -736,117 +971,29 @@ elif st.session_state.pagina_actual == "Articulos":
             <img src="{info['imagen']}" class="rp-articulo-img" alt="">
         </div>
         """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================================
-# VISTA 3: BRIEFING ROOM (IA + GLOBO 3D)
+# VISTA 3: BRIEFING ROOM (REESTRUCTURADO)
 # =========================================================================
 elif st.session_state.pagina_actual == "AuditoriaIA":
-
-    st.markdown('<span class="rp-seccion-label">Inteligencia Artificial · Corpus RealPolitik</span>', unsafe_allow_html=True)
+    st.markdown('<div class="rp-content">', unsafe_allow_html=True)
+    st.markdown('<br>', unsafe_allow_html=True)
+    st.markdown('<span class="rp-seccion-label">Inteligencia Artificial · Sala de Mando</span>', unsafe_allow_html=True)
     st.markdown("""
     <div class="rp-briefing-header">
         <span class="rp-online-dot"></span>
         <h2 class="rp-seccion-title" style="margin:0;">The Briefing Room</h2>
     </div>
-    <p style="color:#4A5568; font-size:0.85rem; margin-bottom:2rem;">
-        Terminal de análisis geopolítico potenciada por IA. Formula una consulta —
-        el sistema identificará los países involucrados y los resaltará en el globo terrestre.
-    </p>
     """, unsafe_allow_html=True)
 
     api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.environ.get("GEMINI_API_KEY")
 
-    col_chat, col_globo = st.columns([1.1, 1], gap="large")
-
-    with col_chat:
-        st.markdown('<span class="rp-seccion-label">Consola de Análisis</span>', unsafe_allow_html=True)
-
-        titulos_articulos = [info["titulo"] for info in ARTICULOS_DB.values()]
-        articulo_seleccionado = st.selectbox(
-            "Contexto de análisis:",
-            ["Todo el Corpus Disponible"] + titulos_articulos
-        )
-
-        contenedor_chat = st.container(height=400, border=True)
-        with contenedor_chat:
-            if not st.session_state.historial_ia:
-                st.markdown(f"""
-                <div class="rp-chat-label">Sistema</div>
-                <div class="rp-chat-bubble-ai">
-                    <strong>[REALAI v3.0]</strong> &nbsp;·&nbsp; Gemini 2.5 Flash<br>
-                    Corpus activo: <em>{articulo_seleccionado}</em><br>
-                    <span style="color:#4A5568; font-size:0.8rem;">Los países mencionados en tu consulta se resaltarán automáticamente en el globo.</span>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                for msg in st.session_state.historial_ia:
-                    if msg["rol"] == "usuario":
-                        st.markdown(f'<div class="rp-chat-label">Analista</div><div class="rp-chat-bubble-user">{msg["texto"]}</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="rp-chat-label">RealPolitik AI</div><div class="rp-chat-bubble-ai">{msg["texto"]}</div>', unsafe_allow_html=True)
-
-        col_input_btn, col_clear = st.columns([3, 1])
-        with col_clear:
-            if st.button("Limpiar", use_container_width=True):
-                st.session_state.historial_ia = []
-                st.session_state.globe_countries = []
-                st.rerun()
-
-        prompt_usuario = st.chat_input("Escriba su consulta geopolítica...")
-
-        if prompt_usuario:
-            if not api_key:
-                st.error("Falta la API Key en el entorno del servidor.")
-                st.stop()
-
-            st.session_state.historial_ia.append({"rol": "usuario", "texto": prompt_usuario})
-
-            if articulo_seleccionado == "Todo el Corpus Disponible":
-                contexto_documento = "\n\n".join([f"Articulo: {a['titulo']}\nContenido: {a['contenido']}" for a in ARTICULOS_DB.values()])
-            else:
-                id_art = [k for k, v in ARTICULOS_DB.items() if v["titulo"] == articulo_seleccionado][0]
-                contexto_documento = f"Articulo: {articulo_seleccionado}\nContenido: {ARTICULOS_DB[id_art]['contenido']}"
-
-            instrucciones = f"""Actúas como el consultor/analista en jefe de REALPOLITIK.
-Tono frío, analítico, profundo y absolutamente objetivo.
-Usa el corpus documental provisto como fuente primaria.
-
-CORPUS:
-{contexto_documento}
-
-INSTRUCCIÓN ESPECIAL: Al final de tu respuesta, añade siempre una línea con el formato exacto:
-PAÍSES_MAPA: [lista de países relevantes separados por coma en inglés, ej: United States, Russia, China]
-Si no hay países relevantes, escribe: PAÍSES_MAPA: ninguno"""
-
-            try:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_usuario,
-                    config=types.GenerateContentConfig(system_instruction=instrucciones, temperature=0.3)
-                )
-                respuesta_completa = response.text
-
-                # Extraer países del mapa
-                if "PAÍSES_MAPA:" in respuesta_completa:
-                    partes = respuesta_completa.split("PAÍSES_MAPA:")
-                    respuesta_ia = partes[0].strip()
-                    paises_raw = partes[1].strip()
-                    if paises_raw.lower() != "ninguno":
-                        st.session_state.globe_countries = [p.strip() for p in paises_raw.split(",") if p.strip()]
-                    else:
-                        st.session_state.globe_countries = []
-                else:
-                    respuesta_ia = respuesta_completa
-                    st.session_state.globe_countries = []
-
-            except Exception as e:
-                respuesta_ia = f"⚠️ Error del Sistema: {str(e)}"
-                st.session_state.globe_countries = []
-
-            st.session_state.historial_ia.append({"rol": "sistema", "texto": respuesta_ia})
-            st.rerun()
+    # =====================================================================
+    # FILA SUPERIOR: GLOBO (izquierda) + DOS COLUMNAS DE INTELIGENCIA (derecha)
+    # =====================================================================
+    col_globo, col_intel = st.columns([1, 1.15], gap="large")
 
     with col_globo:
         st.markdown('<span class="rp-seccion-label">Mapa Geopolítico · Vista 3D</span>', unsafe_allow_html=True)
@@ -862,7 +1009,7 @@ Si no hay países relevantes, escribe: PAÍSES_MAPA: ninguno"""
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ background: #080A0F; overflow: hidden; }}
   canvas {{ display: block; }}
-  #globe-container {{ width: 100%; height: 430px; position: relative; cursor: grab; }}
+  #globe-container {{ width: 100%; height: 520px; position: relative; cursor: grab; }}
   #globe-container:active {{ cursor: grabbing; }}
   #status {{
     position: absolute;
@@ -898,57 +1045,35 @@ Si no hay países relevantes, escribe: PAÍSES_MAPA: ninguno"""
   <div id="countries-label"></div>
   <div id="status">Arrastra para rotar · Scroll para zoom</div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <script>
 const canvas = document.getElementById('globe');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('globe-container');
 
-// Países a resaltar (desde Python)
 const HIGHLIGHT_COUNTRIES = {paises_js};
 
-// Coordenadas aproximadas de países (ISO → [lat, lon])
 const COUNTRY_COORDS = {{
-  "United States": [37.09, -95.71],
-  "Russia": [61.52, 105.31],
-  "China": [35.86, 104.19],
-  "Germany": [51.16, 10.45],
-  "United Kingdom": [55.37, -3.43],
-  "France": [46.22, 2.21],
-  "Japan": [36.20, 138.25],
-  "Saudi Arabia": [23.88, 45.07],
-  "Brazil": [-14.23, -51.92],
-  "India": [20.59, 78.96],
-  "Venezuela": [6.42, -66.58],
-  "Iran": [32.42, 53.68],
-  "Turkey": [38.96, 35.24],
-  "Ukraine": [48.37, 31.16],
-  "Israel": [31.04, 34.85],
-  "South Africa": [-30.55, 22.93],
-  "Argentina": [-38.41, -63.61],
-  "Mexico": [23.63, -102.55],
-  "Canada": [56.13, -106.34],
-  "Australia": [-25.27, 133.77],
-  "Spain": [40.46, -3.74],
-  "Italy": [41.87, 12.56],
-  "Netherlands": [52.13, 5.29],
-  "Switzerland": [46.81, 8.22],
-  "Egypt": [26.82, 30.80],
-  "Nigeria": [9.08, 8.67],
-  "Qatar": [25.35, 51.18],
-  "United Arab Emirates": [23.42, 53.84],
-  "South Korea": [35.90, 127.76],
-  "Indonesia": [-0.78, 113.92],
-  "Pakistan": [30.37, 69.34],
-  "Poland": [51.91, 19.14],
-  "Colombia": [4.57, -74.29],
+  "United States": [37.09, -95.71], "Russia": [61.52, 105.31], "China": [35.86, 104.19],
+  "Germany": [51.16, 10.45], "United Kingdom": [55.37, -3.43], "France": [46.22, 2.21],
+  "Japan": [36.20, 138.25], "Saudi Arabia": [23.88, 45.07], "Brazil": [-14.23, -51.92],
+  "India": [20.59, 78.96], "Venezuela": [6.42, -66.58], "Iran": [32.42, 53.68],
+  "Turkey": [38.96, 35.24], "Ukraine": [48.37, 31.16], "Israel": [31.04, 34.85],
+  "South Africa": [-30.55, 22.93], "Argentina": [-38.41, -63.61], "Mexico": [23.63, -102.55],
+  "Canada": [56.13, -106.34], "Australia": [-25.27, 133.77], "Spain": [40.46, -3.74],
+  "Italy": [41.87, 12.56], "Netherlands": [52.13, 5.29], "Switzerland": [46.81, 8.22],
+  "Egypt": [26.82, 30.80], "Nigeria": [9.08, 8.67], "Qatar": [25.35, 51.18],
+  "United Arab Emirates": [23.42, 53.84], "South Korea": [35.90, 127.76], "Indonesia": [-0.78, 113.92],
+  "Pakistan": [30.37, 69.34], "Poland": [51.91, 19.14], "Colombia": [4.57, -74.29],
 }};
 
 let W, H, R;
-let rotX = 0.3, rotY = -0.5;
+let rotX = 0.25, rotY = -0.5;
 let isDragging = false, lastX, lastY;
 let scale = 1.0;
-let animFrame;
 let autoRotate = true;
+let landFeatures = null;
 
 function resize() {{
   W = container.offsetWidth;
@@ -958,97 +1083,123 @@ function resize() {{
   R = Math.min(W, H) * 0.42 * scale;
 }}
 
-// Proyección esférica → 2D con rotación
-function project(lat, lon) {{
-  const phi = (90 - lat) * Math.PI / 180;
-  const theta = (lon + 180) * Math.PI / 180;
-  let x0 = -Math.sin(phi) * Math.cos(theta);
-  let y0 = Math.cos(phi);
-  let z0 = Math.sin(phi) * Math.sin(theta);
-  // Rotar Y
+function rotatePoint(x0, y0, z0) {{
   const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
   const x1 = x0 * cosY + z0 * sinY;
   const z1 = -x0 * sinY + z0 * cosY;
-  // Rotar X
   const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
   const y2 = y0 * cosX - z1 * sinX;
   const z2 = y0 * sinX + z1 * cosX;
-  return {{
-    x: W / 2 + R * x1,
-    y: H / 2 - R * y2,
-    visible: z2 > -0.1
-  }};
+  return [x1, y2, z2];
+}}
+
+function project(lat, lon) {{
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = (lon + 180) * Math.PI / 180;
+  const x0 = -Math.sin(phi) * Math.cos(theta);
+  const y0 = Math.cos(phi);
+  const z0 = Math.sin(phi) * Math.sin(theta);
+  const [x1, y2, z2] = rotatePoint(x0, y0, z0);
+  return {{ x: W / 2 + R * x1, y: H / 2 - R * y2, z: z2, visible: z2 > -0.05 }};
 }}
 
 function drawGlobe() {{
   ctx.clearRect(0, 0, W, H);
 
-  // Glow ambiente
   const grd = ctx.createRadialGradient(W/2, H/2, R*0.3, W/2, H/2, R*1.1);
   grd.addColorStop(0, 'rgba(200,169,110,0.04)');
   grd.addColorStop(1, 'rgba(8,10,15,0)');
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, W, H);
 
-  // Esfera base
   const sphereGrad = ctx.createRadialGradient(W/2 - R*0.25, H/2 - R*0.25, R*0.05, W/2, H/2, R);
-  sphereGrad.addColorStop(0, '#111520');
+  sphereGrad.addColorStop(0, '#0E1320');
   sphereGrad.addColorStop(0.6, '#080D14');
   sphereGrad.addColorStop(1, '#04060A');
   ctx.beginPath();
   ctx.arc(W/2, H/2, R, 0, Math.PI * 2);
   ctx.fillStyle = sphereGrad;
   ctx.fill();
-
-  // Borde del globo
+  ctx.save();
   ctx.beginPath();
   ctx.arc(W/2, H/2, R, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(200,169,110,0.15)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  ctx.clip();
 
-  // Meridianos
-  ctx.strokeStyle = 'rgba(200,169,110,0.06)';
+  // Meridianos / paralelos de fondo
+  ctx.strokeStyle = 'rgba(200,169,110,0.05)';
   ctx.lineWidth = 0.5;
-  for (let lon = -180; lon <= 180; lon += 30) {{
+  for (let lon = -180; lon <= 180; lon += 20) {{
     ctx.beginPath();
     let first = true;
     for (let lat = -90; lat <= 90; lat += 2) {{
       const p = project(lat, lon);
-      if (p.visible) {{
-        if (first) {{ ctx.moveTo(p.x, p.y); first = false; }}
-        else ctx.lineTo(p.x, p.y);
-      }} else {{ first = true; }}
+      if (p.visible) {{ if (first) {{ ctx.moveTo(p.x, p.y); first = false; }} else ctx.lineTo(p.x, p.y); }}
+      else first = true;
     }}
     ctx.stroke();
   }}
-
-  // Paralelos
-  for (let lat = -60; lat <= 60; lat += 30) {{
+  for (let lat = -60; lat <= 60; lat += 20) {{
     ctx.beginPath();
     let first = true;
     for (let lon = -180; lon <= 180; lon += 2) {{
       const p = project(lat, lon);
-      if (p.visible) {{
-        if (first) {{ ctx.moveTo(p.x, p.y); first = false; }}
-        else ctx.lineTo(p.x, p.y);
-      }} else {{ first = true; }}
+      if (p.visible) {{ if (first) {{ ctx.moveTo(p.x, p.y); first = false; }} else ctx.lineTo(p.x, p.y); }}
+      else first = true;
     }}
     ctx.stroke();
   }}
 
-  // Ecuador destacado
-  ctx.strokeStyle = 'rgba(200,169,110,0.12)';
+  // Continentes (GeoJSON real vía topojson world-atlas)
+  if (landFeatures) {{
+    ctx.fillStyle = 'rgba(180,178,172,0.16)';
+    ctx.strokeStyle = 'rgba(200,169,110,0.22)';
+    ctx.lineWidth = 0.6;
+    landFeatures.forEach(feature => {{
+      const geom = feature.geometry;
+      if (!geom) return;
+      const polygons = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
+      polygons.forEach(polygon => {{
+        polygon.forEach(ring => {{
+          ctx.beginPath();
+          let started = false;
+          let lastVisible = false;
+          ring.forEach(([lon, lat]) => {{
+            const p = project(lat, lon);
+            if (p.visible) {{
+              if (!started || !lastVisible) {{ ctx.moveTo(p.x, p.y); started = true; }}
+              else ctx.lineTo(p.x, p.y);
+              lastVisible = true;
+            }} else {{
+              lastVisible = false;
+            }}
+          }});
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }});
+      }});
+    }});
+  }}
+
+  // Ecuador
+  ctx.strokeStyle = 'rgba(200,169,110,0.1)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   let firstEq = true;
   for (let lon = -180; lon <= 180; lon += 1) {{
     const p = project(0, lon);
-    if (p.visible) {{
-      if (firstEq) {{ ctx.moveTo(p.x, p.y); firstEq = false; }}
-      else ctx.lineTo(p.x, p.y);
-    }} else {{ firstEq = true; }}
+    if (p.visible) {{ if (firstEq) {{ ctx.moveTo(p.x, p.y); firstEq = false; }} else ctx.lineTo(p.x, p.y); }}
+    else firstEq = true;
   }}
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Borde del globo
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(200,169,110,0.18)';
+  ctx.lineWidth = 1;
   ctx.stroke();
 
   // Puntos de países resaltados
@@ -1059,22 +1210,19 @@ function drawGlobe() {{
       const p = project(coords[0], coords[1]);
       if (!p.visible) return;
 
-      // Halo exterior
       const halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 20);
-      halo.addColorStop(0, 'rgba(200,169,110,0.25)');
+      halo.addColorStop(0, 'rgba(200,169,110,0.3)');
       halo.addColorStop(1, 'rgba(200,169,110,0)');
       ctx.fillStyle = halo;
       ctx.beginPath();
       ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
       ctx.fill();
 
-      // Punto central
       ctx.beginPath();
       ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
       ctx.fillStyle = '#C8A96E';
       ctx.fill();
 
-      // Anillo pulsante (aproximado con opacidad variable)
       const t = Date.now() / 1000;
       const pulse = 0.4 + 0.6 * Math.sin(t * 2);
       ctx.beginPath();
@@ -1083,82 +1231,46 @@ function drawGlobe() {{
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Etiqueta
-      ctx.fillStyle = 'rgba(200,169,110,0.9)';
-      ctx.font = '9px JetBrains Mono, monospace';
-      ctx.letterSpacing = '1px';
+      ctx.fillStyle = 'rgba(232,230,225,0.95)';
+      ctx.font = '600 10px Inter, sans-serif';
       ctx.fillText(country.toUpperCase(), p.x + 10, p.y - 6);
     }});
-  }}
-
-  // Estrella polar (ornamento)
-  const pole = project(90, 0);
-  if (pole.visible) {{
-    ctx.beginPath();
-    ctx.arc(pole.x, pole.y, 2, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(200,169,110,0.4)';
-    ctx.fill();
   }}
 }}
 
 function animate() {{
-  if (autoRotate && !isDragging) {{
-    rotY += 0.003;
-  }}
+  if (autoRotate && !isDragging) {{ rotY += 0.0022; }}
   drawGlobe();
-  animFrame = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 }}
 
-// Interactividad
-canvas.addEventListener('mousedown', e => {{
-  isDragging = true;
-  autoRotate = false;
-  lastX = e.clientX;
-  lastY = e.clientY;
-  e.preventDefault();
-}});
+canvas.addEventListener('mousedown', e => {{ isDragging = true; autoRotate = false; lastX = e.clientX; lastY = e.clientY; e.preventDefault(); }});
 canvas.addEventListener('mousemove', e => {{
   if (!isDragging) return;
-  const dx = e.clientX - lastX;
-  const dy = e.clientY - lastY;
-  rotY += dx * 0.005;
-  rotX += dy * 0.005;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  rotY += dx * 0.005; rotX += dy * 0.005;
   rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
-  lastX = e.clientX;
-  lastY = e.clientY;
+  lastX = e.clientX; lastY = e.clientY;
 }});
 canvas.addEventListener('mouseup', () => {{ isDragging = false; }});
 canvas.addEventListener('mouseleave', () => {{ isDragging = false; }});
-
 canvas.addEventListener('wheel', e => {{
   scale *= e.deltaY > 0 ? 0.93 : 1.07;
-  scale = Math.max(0.5, Math.min(2.0, scale));
+  scale = Math.max(0.5, Math.min(2.2, scale));
   R = Math.min(W, H) * 0.42 * scale;
   e.preventDefault();
 }}, {{ passive: false }});
-
-// Touch
-canvas.addEventListener('touchstart', e => {{
-  isDragging = true;
-  autoRotate = false;
-  lastX = e.touches[0].clientX;
-  lastY = e.touches[0].clientY;
-  e.preventDefault();
-}}, {{ passive: false }});
+canvas.addEventListener('touchstart', e => {{ isDragging = true; autoRotate = false; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; e.preventDefault(); }}, {{ passive: false }});
 canvas.addEventListener('touchmove', e => {{
   if (!isDragging) return;
-  const dx = e.touches[0].clientX - lastX;
-  const dy = e.touches[0].clientY - lastY;
-  rotY += dx * 0.005;
-  rotX += dy * 0.005;
+  const dx = e.touches[0].clientX - lastX, dy = e.touches[0].clientY - lastY;
+  rotY += dx * 0.005; rotX += dy * 0.005;
   rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
-  lastX = e.touches[0].clientX;
-  lastY = e.touches[0].clientY;
+  lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
   e.preventDefault();
 }}, {{ passive: false }});
 canvas.addEventListener('touchend', () => {{ isDragging = false; }});
 
-// Label de países
 const label = document.getElementById('countries-label');
 if (HIGHLIGHT_COUNTRIES.length > 0) {{
   label.innerHTML = '<span style="color:#4A5568;">Foco:</span><br>' + HIGHLIGHT_COUNTRIES.join('<br>');
@@ -1167,29 +1279,235 @@ if (HIGHLIGHT_COUNTRIES.length > 0) {{
 }}
 
 resize();
-window.addEventListener('resize', () => {{
-  resize();
-  R = Math.min(W, H) * 0.42 * scale;
-}});
+window.addEventListener('resize', () => {{ resize(); }});
+
+// Cargar geometría real de continentes (world-atlas, vía CDN)
+fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json')
+  .then(r => r.json())
+  .then(data => {{
+    const land = topojson.feature(data, data.objects.land);
+    landFeatures = land.features;
+  }})
+  .catch(() => {{ landFeatures = null; }});
+
 animate();
 </script>
 </body>
 </html>
 """
-        st.components.v1.html(globo_html, height=440)
+        st.components.v1.html(globo_html, height=520)
         st.markdown(f"""
-        <div style="margin-top:0.5rem;">
-            <span class="rp-seccion-label">
-                {f"Países en análisis: {', '.join(st.session_state.globe_countries)}" if st.session_state.globe_countries else "Formula una consulta para activar el localizador geopolítico"}
-            </span>
-        </div>
+        <span class="rp-seccion-label">
+            {f"Foco activo: {', '.join(st.session_state.globe_countries)}" if st.session_state.globe_countries else "Consulta la terminal abajo para activar el localizador"}
+        </span>
         """, unsafe_allow_html=True)
+
+    with col_intel:
+        st.markdown('<span class="rp-seccion-label">Inteligencia Automatizada</span>', unsafe_allow_html=True)
+
+        sub_col1, sub_col2 = st.columns(2, gap="medium")
+
+        with sub_col1:
+            st.markdown('<div class="rp-intel-col">', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="rp-intel-header">
+                <span class="rp-online-dot"></span>
+                <span class="rp-intel-title">Resumen del Contexto Actual</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if st.session_state.briefing_contexto:
+                st.markdown(f'<div class="rp-intel-body">{st.session_state.briefing_contexto}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="rp-intel-empty">Sin generar.<br>Pulsa "Generar Briefings" abajo.</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with sub_col2:
+            st.markdown('<div class="rp-intel-col">', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="rp-intel-header">
+                <span class="rp-online-dot"></span>
+                <span class="rp-intel-title">Sucesos de esta Semana</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if st.session_state.briefing_semana:
+                st.markdown(f'<div class="rp-intel-body">{st.session_state.briefing_semana}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="rp-intel-empty">Sin generar.<br>Pulsa "Generar Briefings" abajo.</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("⟳ Generar Briefings con IA", use_container_width=True, key="btn_gen_briefing"):
+            if not api_key:
+                st.error("Falta la API Key en el entorno del servidor.")
+            else:
+                try:
+                    client = genai.Client(api_key=api_key)
+                    grounding_tool = types.Tool(google_search=types.GoogleSearch())
+
+                    with st.spinner("Sintetizando contexto geopolítico global..."):
+                        resp_contexto = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents="Resume en un párrafo denso (máx. 120 palabras) el contexto geopolítico, geoeconómico y político global ACTUAL. Tono frío, analítico y objetivo, como un brief de inteligencia. No uses títulos ni listas, solo prosa corrida.",
+                            config=types.GenerateContentConfig(
+                                tools=[grounding_tool],
+                                temperature=0.3
+                            )
+                        )
+                        st.session_state.briefing_contexto = resp_contexto.text
+
+                    with st.spinner("Recopilando sucesos relevantes de la semana..."):
+                        resp_semana = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents="Resume en un párrafo denso (máx. 120 palabras) los acontecimientos geopolíticos, geoeconómicos y políticos más relevantes de ESTA SEMANA a nivel global. Tono frío, analítico y objetivo, como un brief de inteligencia. No uses títulos ni listas, solo prosa corrida.",
+                            config=types.GenerateContentConfig(
+                                tools=[grounding_tool],
+                                temperature=0.3
+                            )
+                        )
+                        st.session_state.briefing_semana = resp_semana.text
+
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"⚠️ No fue posible generar el briefing automatizado: {str(e)}")
+
+    st.markdown("<br><hr style='border-top: 1px solid #1A1F2E; margin: 1rem 0 2.5rem 0;'><br>", unsafe_allow_html=True)
+
+    # =====================================================================
+    # TERMINAL DE CONSULTA — chat con selector de fuentes
+    # =====================================================================
+    st.markdown('<span class="rp-seccion-label">Terminal de Consulta</span>', unsafe_allow_html=True)
+    st.markdown("""
+    <p style="color:#4A5568; font-size:0.85rem; margin-bottom:1.5rem;">
+        Formula una consulta — el sistema identificará los países involucrados y los resaltará en el globo.
+    </p>
+    """, unsafe_allow_html=True)
+
+    col_config1, col_config2 = st.columns([1, 1], gap="large")
+
+    with col_config1:
+        titulos_articulos = [info["titulo"] for info in ARTICULOS_DB.values()]
+        articulo_seleccionado = st.selectbox(
+            "Contexto de análisis:",
+            ["Todo el Corpus Disponible"] + titulos_articulos
+        )
+
+    with col_config2:
+        fuente_opciones = ["Solo Corpus", "Solo Web", "Corpus + Web"]
+        idx_fuente = fuente_opciones.index(st.session_state.fuente_ia) if st.session_state.fuente_ia in fuente_opciones else 2
+        fuente_seleccionada = st.radio(
+            "Fuente de información de la IA:",
+            fuente_opciones,
+            index=idx_fuente,
+            horizontal=True
+        )
+        st.session_state.fuente_ia = fuente_seleccionada
+
+    contenedor_chat = st.container(height=400, border=True)
+    with contenedor_chat:
+        if not st.session_state.historial_ia:
+            st.markdown(f"""
+            <div class="rp-chat-label">Sistema</div>
+            <div class="rp-chat-bubble-ai">
+                <strong>[REALAI v3.0]</strong> &nbsp;·&nbsp; Gemini 2.5 Flash<br>
+                Corpus activo: <em>{articulo_seleccionado}</em> &nbsp;·&nbsp; Fuente: <em>{fuente_seleccionada}</em><br>
+                <span style="color:#4A5568; font-size:0.8rem;">Los países mencionados en tu consulta se resaltarán automáticamente en el globo.</span>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            for msg in st.session_state.historial_ia:
+                if msg["rol"] == "usuario":
+                    st.markdown(f'<div class="rp-chat-label">Analista</div><div class="rp-chat-bubble-user">{msg["texto"]}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="rp-chat-label">RealPolitik AI</div><div class="rp-chat-bubble-ai">{msg["texto"]}</div>', unsafe_allow_html=True)
+
+    col_input_btn, col_clear = st.columns([3, 1])
+    with col_clear:
+        if st.button("Limpiar Chat", use_container_width=True):
+            st.session_state.historial_ia = []
+            st.session_state.globe_countries = []
+            st.rerun()
+
+    prompt_usuario = st.chat_input("Escriba su consulta geopolítica...")
+
+    if prompt_usuario:
+        if not api_key:
+            st.error("Falta la API Key en el entorno del servidor.")
+            st.stop()
+
+        st.session_state.historial_ia.append({"rol": "usuario", "texto": prompt_usuario})
+
+        if articulo_seleccionado == "Todo el Corpus Disponible":
+            contexto_documento = "\n\n".join([f"Articulo: {a['titulo']}\nContenido: {a['contenido']}" for a in ARTICULOS_DB.values()])
+        else:
+            id_art = [k for k, v in ARTICULOS_DB.items() if v["titulo"] == articulo_seleccionado][0]
+            contexto_documento = f"Articulo: {articulo_seleccionado}\nContenido: {ARTICULOS_DB[id_art]['contenido']}"
+
+        # Instrucciones según la fuente seleccionada
+        if fuente_seleccionada == "Solo Corpus":
+            restriccion = "Debes responder ÚNICAMENTE con base en el corpus documental provisto abajo. No utilices conocimiento externo ni busques en la web. Si la respuesta no está en el corpus, indícalo explícitamente."
+            usar_grounding = False
+        elif fuente_seleccionada == "Solo Web":
+            restriccion = "Ignora el corpus documental provisto y responde únicamente con información actual obtenida de la búsqueda web."
+            usar_grounding = True
+        else:
+            restriccion = "Puedes combinar el corpus documental provisto con búsquedas web para enriquecer tu respuesta con información actual."
+            usar_grounding = True
+
+        instrucciones = f"""Actúas como el consultor/analista en jefe de REALPOLITIK.
+Tono frío, analítico, profundo y absolutamente objetivo.
+
+{restriccion}
+
+CORPUS:
+{contexto_documento}
+
+INSTRUCCIÓN ESPECIAL: Al final de tu respuesta, añade siempre una línea con el formato exacto:
+PAÍSES_MAPA: [lista de países relevantes separados por coma en inglés, ej: United States, Russia, China]
+Si no hay países relevantes, escribe: PAÍSES_MAPA: ninguno"""
+
+        try:
+            client = genai.Client(api_key=api_key)
+            config_kwargs = {"system_instruction": instrucciones, "temperature": 0.3}
+            if usar_grounding:
+                config_kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_usuario,
+                config=types.GenerateContentConfig(**config_kwargs)
+            )
+            respuesta_completa = response.text
+
+            if "PAÍSES_MAPA:" in respuesta_completa:
+                partes = respuesta_completa.split("PAÍSES_MAPA:")
+                respuesta_ia = partes[0].strip()
+                paises_raw = partes[1].strip()
+                if paises_raw.lower() != "ninguno":
+                    st.session_state.globe_countries = [p.strip() for p in paises_raw.split(",") if p.strip()]
+                else:
+                    st.session_state.globe_countries = []
+            else:
+                respuesta_ia = respuesta_completa
+                st.session_state.globe_countries = []
+
+        except Exception as e:
+            respuesta_ia = f"⚠️ Error del Sistema: {str(e)}"
+            st.session_state.globe_countries = []
+
+        st.session_state.historial_ia.append({"rol": "sistema", "texto": respuesta_ia})
+        st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================================
 # VISTA 4: CONTACTO
 # =========================================================================
 elif st.session_state.pagina_actual == "Contacto":
+    st.markdown('<div class="rp-content">', unsafe_allow_html=True)
+    st.markdown('<br>', unsafe_allow_html=True)
     st.markdown('<span class="rp-seccion-label">Comunicación Institucional</span>', unsafe_allow_html=True)
     st.markdown('<h2 class="rp-seccion-title">Oficina de Enlace</h2>', unsafe_allow_html=True)
 
@@ -1230,12 +1548,15 @@ elif st.session_state.pagina_actual == "Contacto":
             </p>
         </div>
         """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================================
 # VISTA 5: MESA EDITORIAL
 # =========================================================================
 elif st.session_state.pagina_actual == "MesaEditorial":
+    st.markdown('<div class="rp-content">', unsafe_allow_html=True)
+    st.markdown('<br>', unsafe_allow_html=True)
     st.markdown('<span class="rp-seccion-label">Acceso Restringido · Panel de Control</span>', unsafe_allow_html=True)
     st.markdown('<h2 class="rp-seccion-title">Mesa Editorial</h2>', unsafe_allow_html=True)
 
@@ -1253,6 +1574,7 @@ elif st.session_state.pagina_actual == "MesaEditorial":
                         st.rerun()
                     else:
                         st.error("Credenciales inválidas.")
+        st.markdown('</div>', unsafe_allow_html=True)
         st.stop()
 
     col_cierre, _ = st.columns([1, 3])
@@ -1336,6 +1658,7 @@ elif st.session_state.pagina_actual == "MesaEditorial":
                     guardar_articulos(ARTICULOS_DB)
                     st.success("Cambios guardados.")
                     st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================================
@@ -1344,6 +1667,8 @@ elif st.session_state.pagina_actual == "MesaEditorial":
 elif st.session_state.pagina_actual in ARTICULOS_DB:
     art_info = ARTICULOS_DB[st.session_state.pagina_actual]
 
+    st.markdown('<div class="rp-content">', unsafe_allow_html=True)
+    st.markdown('<br>', unsafe_allow_html=True)
     st.markdown(f'<p class="rp-lectura-meta">{art_info["fecha"]} &nbsp;·&nbsp; {art_info["categoria"].upper()}</p>', unsafe_allow_html=True)
     st.markdown(f'<h1 class="rp-lectura-titulo">{art_info["titulo"]}</h1>', unsafe_allow_html=True)
 
@@ -1400,6 +1725,7 @@ elif st.session_state.pagina_actual in ARTICULOS_DB:
         st.session_state.pagina_actual = "Articulos"
         st.query_params["nav"] = "Articulos"
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================================
@@ -1407,7 +1733,7 @@ elif st.session_state.pagina_actual in ARTICULOS_DB:
 # =========================================================================
 st.markdown(f"""
 <div class="rp-footer">
-    <span class="rp-footer-copy">Realpolitik Intelligence Network © 2026 · Documento de Acceso Abierto</span>
-    <span class="rp-footer-copy">{coord_display}</span>
+    <span class="rp-footer-copy">Realpolitik Intelligence Network © 2026</span>
+    <span class="rp-footer-copy">Documento de Acceso Abierto</span>
 </div>
 """, unsafe_allow_html=True)
