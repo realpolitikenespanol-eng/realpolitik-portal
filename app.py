@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import json
+import time
 from urllib.parse import quote
 from google import genai
 from google.genai import types
@@ -57,6 +58,103 @@ def guardar_articulos(datos):
 ARTICULOS_DB = cargar_articulos()
 
 # =========================================================================
+# FUNCIONES AUXILIARES — IA (Gemini)
+# =========================================================================
+def _get_api_key():
+    return st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.environ.get("GEMINI_API_KEY")
+
+def generar_briefing_diario(api_key):
+    """Genera contexto actual + sucesos de la semana + hotspots geopolíticos del día.
+    Devuelve (contexto, semana, lista_paises) o lanza excepción."""
+    client = genai.Client(api_key=api_key)
+    grounding_tool = types.Tool(google_search=types.GoogleSearch())
+
+    resp_contexto = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="Resume en un párrafo denso (máx. 120 palabras) el contexto geopolítico, geoeconómico y político global ACTUAL. Tono frío, analítico y objetivo, como un brief de inteligencia. No uses títulos ni listas, solo prosa corrida.",
+        config=types.GenerateContentConfig(tools=[grounding_tool], temperature=0.3)
+    )
+    contexto = resp_contexto.text.strip()
+
+    resp_semana = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="Resume en un párrafo denso (máx. 120 palabras) los acontecimientos geopolíticos, geoeconómicos y políticos más relevantes de ESTA SEMANA a nivel global. Tono frío, analítico y objetivo, como un brief de inteligencia. No uses títulos ni listas, solo prosa corrida.",
+        config=types.GenerateContentConfig(tools=[grounding_tool], temperature=0.3)
+    )
+    semana = resp_semana.text.strip()
+
+    resp_hotspots = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="¿Cuáles son los 4 a 7 países que hoy representan los principales focos de tensión o relevancia geopolítica, geoeconómica o política a nivel mundial? Responde ÚNICAMENTE con sus nombres en inglés, separados por coma, sin explicaciones ni texto adicional. Ejemplo de formato: United States, China, Russia, Ukraine",
+        config=types.GenerateContentConfig(tools=[grounding_tool], temperature=0.2)
+    )
+    paises_raw = resp_hotspots.text.strip()
+    hotspots = [p.strip() for p in paises_raw.split(",") if p.strip()]
+
+    return contexto, semana, hotspots
+
+def generar_briefing_pais(api_key, pais_nombre):
+    """Genera un mini-briefing específico de un país."""
+    client = genai.Client(api_key=api_key)
+    grounding_tool = types.Tool(google_search=types.GoogleSearch())
+    resp = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=f"Genera un briefing breve (máx. 70 palabras) sobre la situación geopolítica, geoeconómica y política ACTUAL de {pais_nombre}. Tono frío, analítico y objetivo. Solo prosa corrida, sin títulos.",
+        config=types.GenerateContentConfig(tools=[grounding_tool], temperature=0.3)
+    )
+    return resp.text.strip()
+
+def render_texto_tipeo(texto, contenedor_css_class="rp-intel-body", velocidad_ms=12, altura=None, key=""):
+    """Renderiza texto con efecto de tipeo (typewriter) usando un componente HTML.
+    El texto llega completo desde Gemini; el efecto es puramente visual del lado del cliente."""
+    texto_escapado = json.dumps(texto)
+    altura_css = f"height:{altura}px; overflow-y:auto;" if altura else ""
+    html_tipeo = f"""
+<div id="typewrap-{key}" class="{contenedor_css_class}" style="{altura_css} font-family:'Inter',sans-serif;"></div>
+<style>
+  body {{ margin:0; padding:0; background: transparent; }}
+  .{contenedor_css_class} {{
+    font-size: 0.88rem;
+    color: #B0AEA9;
+    line-height: 1.75;
+  }}
+</style>
+<script>
+const fullText_{key} = {texto_escapado};
+const el_{key} = document.getElementById('typewrap-{key}');
+let i_{key} = 0;
+function typeNext_{key}() {{
+  if (i_{key} <= fullText_{key}.length) {{
+    el_{key}.innerHTML = fullText_{key}.substring(0, i_{key}) + '<span class="rp-typing-cursor"></span>';
+    i_{key}++;
+    setTimeout(typeNext_{key}, {velocidad_ms});
+  }} else {{
+    el_{key}.innerHTML = fullText_{key};
+  }}
+}}
+typeNext_{key}();
+</script>
+<style>
+.rp-typing-cursor {{
+    display: inline-block;
+    width: 6px;
+    height: 0.95em;
+    background: #C8A96E;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink-cursor 0.9s step-end infinite;
+}}
+@keyframes blink-cursor {{
+    0%, 100% {{ opacity: 1; }}
+    50% {{ opacity: 0; }}
+}}
+</style>
+"""
+    n_chars = max(len(texto), 1)
+    altura_calc = altura if altura else min(400, max(80, int(n_chars * 0.45) + 40))
+    st.components.v1.html(html_tipeo, height=altura_calc, scrolling=bool(altura))
+
+# =========================================================================
 # CONTROL DE ESTADO DE NAVEGACIÓN
 # =========================================================================
 if "nav" in st.query_params:
@@ -85,10 +183,109 @@ if "briefing_contexto" not in st.session_state:
 if "briefing_semana" not in st.session_state:
     st.session_state.briefing_semana = None
 
+if "briefing_timestamp" not in st.session_state:
+    st.session_state.briefing_timestamp = 0
+
+if "hotspots_diarios" not in st.session_state:
+    st.session_state.hotspots_diarios = []
+
+if "foco_activo" not in st.session_state:
+    # "hotspots" = focos del briefing diario, "consulta" = focos de la última pregunta del usuario
+    st.session_state.foco_activo = "hotspots"
+
+if "pais_tooltip_cache" not in st.session_state:
+    st.session_state.pais_tooltip_cache = {}
+
+if "pais_click_pendiente" in st.query_params:
+    st.session_state["_pais_click_pendiente"] = st.query_params["pais_click_pendiente"]
+    del st.query_params["pais_click_pendiente"]
+
+CACHE_BRIEFING_SEGUNDOS = 3600  # 1 hora
+
+if "briefing_auto_generado" not in st.session_state:
+    st.session_state.briefing_auto_generado = False
+
+if "hotspots_dia" not in st.session_state:
+    st.session_state.hotspots_dia = []
+
+if "modo_hotspots" not in st.session_state:
+    # "dia" = mostrando hotspots automáticos del día | "consulta" = mostrando países de la última consulta
+    st.session_state.modo_hotspots = "dia"
+
+if "pais_briefings_cache" not in st.session_state:
+    st.session_state.pais_briefings_cache = {}
+
+if "pais_seleccionado" not in st.session_state:
+    st.session_state.pais_seleccionado = None
+
+# Si llega un click de país desde el globo (query param)
+if "pais_click" in st.query_params:
+    st.session_state.pais_seleccionado = st.query_params["pais_click"]
+    del st.query_params["pais_click"]
+
 # Si llega una solicitud de filtro vía query param (desde las tarjetas de Inicio)
 if "filtro" in st.query_params:
     st.session_state.filtro_articulos = st.query_params["filtro"]
     del st.query_params["filtro"]
+
+
+# =========================================================================
+# UTILIDAD: ANIMACIÓN DE TIPEO PARA TEXTOS GENERADOS POR IA
+# =========================================================================
+def render_texto_animado(texto, contenedor_class="rp-intel-body", velocidad_ms=10, altura=None):
+    """Renderiza un bloque de texto con efecto de tipeo estilo chatbot, vía componente HTML."""
+    texto_json = json.dumps(texto)
+    h = altura if altura else (max(90, min(260, 28 + len(texto) // 3)))
+    html_code = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:transparent; }}
+  #txt {{
+    font-family:'Inter',sans-serif;
+    font-size:0.88rem;
+    line-height:1.75;
+    color:#B0AEA9;
+  }}
+  #txt strong {{ color:#C8A96E; font-weight:600; }}
+  .cursor {{
+    display:inline-block;
+    width:6px; height:1em;
+    background:#C8A96E;
+    margin-left:2px;
+    vertical-align:text-bottom;
+    animation: blink 0.9s step-end infinite;
+  }}
+  @keyframes blink {{ 50% {{ opacity:0; }} }}
+</style>
+</head>
+<body>
+<div id="txt"></div>
+<script>
+const fullText = {texto_json};
+const el = document.getElementById('txt');
+let i = 0;
+const speed = {velocidad_ms};
+function tick() {{
+  if (i <= fullText.length) {{
+    el.innerHTML = fullText.slice(0, i).replace(/\\n/g, '<br>') + '<span class="cursor"></span>';
+    i += 2;
+    setTimeout(tick, speed);
+  }} else {{
+    el.innerHTML = fullText.replace(/\\n/g, '<br>');
+  }}
+}}
+tick();
+</script>
+</body>
+</html>
+"""
+    st.components.v1.html(html_code, height=h)
+
 
 # =========================================================================
 # SISTEMA DE DISEÑO — REALPOLITIK v3
@@ -117,15 +314,19 @@ st.markdown(f"""
 .block-container {{
     padding-top: 0 !important;
     padding-bottom: 3rem !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    max-width: 100% !important;
+    padding-left: 3.5rem !important;
+    padding-right: 3.5rem !important;
+    max-width: 1180px !important;
+    margin: 0 auto !important;
+}}
+/* El hero y el masthead necesitan escapar del padding del block-container para ser full-bleed */
+.rp-masthead-wrap, .rp-hero {{
+    margin-left: calc(-1 * (50vw - 50%)) !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
 }}
 .rp-content {{
-    max-width: 1100px;
-    margin: 0 auto;
-    padding-left: 2rem;
-    padding-right: 2rem;
+    max-width: 100%;
 }}
 
 html, body, p, li, span {{
@@ -136,12 +337,13 @@ html, body, p, li, span {{
 }}
 
 /* ── MASTHEAD ── */
-.rp-masthead-wrap {{ max-width: 1100px; margin: 0 auto; padding: 0 2rem; }}
 .rp-masthead {{
+    max-width: 1180px;
+    margin: 0 auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.8rem 0 1.2rem 0;
+    padding: 1.8rem 3.5rem 1.2rem 3.5rem;
     border-bottom: 1px solid #1A1F2E;
 }}
 .rp-wordmark {{
@@ -503,6 +705,19 @@ html, body, p, li, span {{
     letter-spacing: 0.05em;
     line-height: 1.8;
 }}
+.rp-typing-cursor {{
+    display: inline-block;
+    width: 7px;
+    height: 1em;
+    background: #C8A96E;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink-cursor 0.9s step-end infinite;
+}}
+@keyframes blink-cursor {{
+    0%, 100% {{ opacity: 1; }}
+    50% {{ opacity: 0; }}
+}}
 
 /* ── BRIEFING ROOM (CHAT) ── */
 .rp-briefing-header {{
@@ -588,7 +803,9 @@ html, body, p, li, span {{
     color: #B0AEA9;
     line-height: 1.9;
     text-align: justify;
-    max-width: 720px;
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
 }}
 .rp-lectura-body strong {{ color: #E8E6E1; font-weight: 600; }}
 
@@ -650,9 +867,9 @@ html, body, p, li, span {{
 
 /* ── PIE DE PÁGINA ── */
 .rp-footer {{
-    max-width: 1100px;
+    max-width: 1180px;
     margin: 4rem auto 0 auto;
-    padding: 1.5rem 2rem 0 2rem;
+    padding: 1.5rem 0 0 0;
     border-top: 1px solid #1A1F2E;
     display: flex;
     justify-content: space-between;
@@ -784,11 +1001,12 @@ h2, h3 {{
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {{
+    .block-container {{ padding-left: 1.2rem !important; padding-right: 1.2rem !important; }}
+    .rp-masthead {{ padding: 1.8rem 1.2rem 1.2rem 1.2rem; flex-direction: row; align-items: center; }}
     .rp-hero {{ padding: 2rem 1.2rem; min-height: 78vh; background-attachment: scroll; }}
     .rp-hero-title {{ font-size: 3.4rem; white-space: normal; }}
     .rp-articulo-fila {{ grid-template-columns: 1fr; }}
     .rp-articulo-img {{ height: 200px; }}
-    .rp-masthead {{ flex-direction: row; align-items: center; }}
     .rp-nav-link {{ font-size: 0.66rem !important; padding: 0.4rem 0.7rem; }}
     .rp-cita {{ font-size: 1.6rem; }}
     .rp-lectura-body {{ font-size: 1rem; }}
@@ -988,7 +1206,42 @@ elif st.session_state.pagina_actual == "AuditoriaIA":
     </div>
     """, unsafe_allow_html=True)
 
-    api_key = st.secrets.get("GEMINI_API_KEY") if "GEMINI_API_KEY" in st.secrets else os.environ.get("GEMINI_API_KEY")
+    api_key = _get_api_key()
+
+    # =====================================================================
+    # AUTO-GENERACIÓN DE BRIEFING DIARIO (cacheado 1 hora)
+    # =====================================================================
+    cache_vencido = (time.time() - st.session_state.briefing_timestamp) > CACHE_BRIEFING_SEGUNDOS
+    necesita_generar = api_key and (st.session_state.briefing_contexto is None or cache_vencido)
+
+    if necesita_generar:
+        try:
+            with st.spinner("Generando briefing diario y localizando focos geopolíticos..."):
+                contexto, semana, hotspots = generar_briefing_diario(api_key)
+                st.session_state.briefing_contexto = contexto
+                st.session_state.briefing_semana = semana
+                st.session_state.hotspots_diarios = hotspots
+                st.session_state.briefing_timestamp = time.time()
+                # Si no hay una consulta activa del usuario, los hotspots del día toman el globo
+                if st.session_state.foco_activo == "hotspots" or not st.session_state.historial_ia:
+                    st.session_state.globe_countries = hotspots
+                    st.session_state.foco_activo = "hotspots"
+        except Exception as e:
+            st.warning(f"⚠️ No fue posible generar el briefing automático: {str(e)}")
+
+    # =====================================================================
+    # PROCESAR CLIC EN PAÍS DEL GLOBO (llega vía query param desde el iframe)
+    # =====================================================================
+    if "_pais_click_pendiente" in st.session_state and st.session_state["_pais_click_pendiente"]:
+        pais_click = st.session_state.pop("_pais_click_pendiente")
+        if api_key and pais_click not in st.session_state.pais_tooltip_cache:
+            try:
+                with st.spinner(f"Generando briefing de {pais_click}..."):
+                    texto_pais = generar_briefing_pais(api_key, pais_click)
+                    st.session_state.pais_tooltip_cache[pais_click] = texto_pais
+            except Exception as e:
+                st.session_state.pais_tooltip_cache[pais_click] = f"⚠️ No se pudo generar el briefing: {str(e)}"
+        st.session_state["_pais_activo_tooltip"] = pais_click
 
     # =====================================================================
     # FILA SUPERIOR: GLOBO (izquierda) + DOS COLUMNAS DE INTELIGENCIA (derecha)
@@ -999,6 +1252,14 @@ elif st.session_state.pagina_actual == "AuditoriaIA":
         st.markdown('<span class="rp-seccion-label">Mapa Geopolítico · Vista 3D</span>', unsafe_allow_html=True)
 
         paises_js = json.dumps(st.session_state.globe_countries)
+        foco_label = "Hotspots del Día" if st.session_state.foco_activo == "hotspots" else "Foco de tu Consulta"
+
+        # Tooltip de país (si hay uno activo)
+        pais_activo_tooltip = st.session_state.get("_pais_activo_tooltip", None)
+        tooltip_texto = ""
+        if pais_activo_tooltip and pais_activo_tooltip in st.session_state.pais_tooltip_cache:
+            tooltip_texto = st.session_state.pais_tooltip_cache[pais_activo_tooltip]
+        tooltip_js = json.dumps({"pais": pais_activo_tooltip, "texto": tooltip_texto} if pais_activo_tooltip else None)
 
         globo_html = f"""
 <!DOCTYPE html>
@@ -1007,35 +1268,58 @@ elif st.session_state.pagina_actual == "AuditoriaIA":
 <meta charset="utf-8">
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-  body {{ background: #080A0F; overflow: hidden; }}
+  body {{ background: #080A0F; overflow: hidden; font-family: 'Inter', sans-serif; }}
   canvas {{ display: block; }}
-  #globe-container {{ width: 100%; height: 520px; position: relative; cursor: grab; }}
+  #globe-container {{ width: 100%; height: 540px; position: relative; cursor: grab; }}
   #globe-container:active {{ cursor: grabbing; }}
   #status {{
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    color: #4A5568;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    pointer-events: none;
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #4A5568;
+    letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; pointer-events: none;
   }}
   #countries-label {{
+    position: absolute; top: 10px; left: 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #C8A96E;
+    letter-spacing: 0.12em; text-transform: uppercase; pointer-events: none;
+    line-height: 1.6; max-width: 220px;
+  }}
+  #zoom-hint {{
+    position: absolute; top: 10px; right: 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #2D3748;
+    letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; text-align: right;
+  }}
+  #country-tooltip {{
     position: absolute;
-    top: 10px;
-    left: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-    color: #C8A96E;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    pointer-events: none;
+    display: none;
+    max-width: 240px;
+    background: #0D1117;
+    border: 1px solid #C8A96E;
+    border-radius: 3px;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    z-index: 10;
+    pointer-events: auto;
+  }}
+  #country-tooltip .tt-header {{
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.5rem;
+  }}
+  #country-tooltip .tt-title {{
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.78rem;
+    color: #C8A96E; letter-spacing: 0.04em; text-transform: uppercase;
+  }}
+  #country-tooltip .tt-close {{
+    cursor: pointer; color: #4A5568; font-size: 0.9rem; line-height: 1;
+    padding: 2px 5px;
+  }}
+  #country-tooltip .tt-close:hover {{ color: #E8E6E1; }}
+  #country-tooltip .tt-body {{
+    font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #B0AEA9;
     line-height: 1.6;
-    max-width: 200px;
+  }}
+  #country-tooltip .tt-loading {{
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: #4A5568;
+    letter-spacing: 0.08em;
   }}
 </style>
 </head>
@@ -1043,7 +1327,15 @@ elif st.session_state.pagina_actual == "AuditoriaIA":
 <div id="globe-container">
   <canvas id="globe"></canvas>
   <div id="countries-label"></div>
+  <div id="zoom-hint">Click en un país<br>para ver su briefing</div>
   <div id="status">Arrastra para rotar · Scroll para zoom</div>
+  <div id="country-tooltip">
+    <div class="tt-header">
+      <span class="tt-title" id="tt-title"></span>
+      <span class="tt-close" onclick="closeTooltip()">✕</span>
+    </div>
+    <div class="tt-body" id="tt-body"></div>
+  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -1051,8 +1343,11 @@ elif st.session_state.pagina_actual == "AuditoriaIA":
 const canvas = document.getElementById('globe');
 const ctx = canvas.getContext('2d');
 const container = document.getElementById('globe-container');
+const tooltip = document.getElementById('country-tooltip');
 
 const HIGHLIGHT_COUNTRIES = {paises_js};
+const FOCO_LABEL = {json.dumps(foco_label)};
+const TOOLTIP_DATA = {tooltip_js};
 
 const COUNTRY_COORDS = {{
   "United States": [37.09, -95.71], "Russia": [61.52, 105.31], "China": [35.86, 104.19],
@@ -1070,10 +1365,11 @@ const COUNTRY_COORDS = {{
 
 let W, H, R;
 let rotX = 0.25, rotY = -0.5;
-let isDragging = false, lastX, lastY;
+let isDragging = false, lastX, lastY, dragMoved = false;
 let scale = 1.0;
 let autoRotate = true;
 let landFeatures = null;
+let countryFeatures = null;
 
 function resize() {{
   W = container.offsetWidth;
@@ -1103,6 +1399,54 @@ function project(lat, lon) {{
   return {{ x: W / 2 + R * x1, y: H / 2 - R * y2, z: z2, visible: z2 > -0.05 }};
 }}
 
+function unprojectToSphere(px, py) {{
+  // Aproxima si un punto de pantalla cae dentro del disco del globo, y devuelve lat/lon aproximado
+  const dx = (px - W / 2) / R;
+  const dy = -(py - H / 2) / R;
+  const distSq = dx * dx + dy * dy;
+  if (distSq > 1) return null;
+  const dz = Math.sqrt(1 - distSq);
+  // Deshacer rotación
+  const cosX = Math.cos(-rotX), sinX = Math.sin(-rotX);
+  const y1 = dy * cosX - dz * sinX;
+  const z1 = dy * sinX + dz * cosX;
+  const cosY = Math.cos(-rotY), sinY = Math.sin(-rotY);
+  const x2 = dx * cosY + z1 * sinY;
+  const z2 = -dx * sinY + z1 * cosY;
+  const lat = Math.asin(Math.max(-1, Math.min(1, y1))) * 180 / Math.PI;
+  let lon = Math.atan2(z2, x2) * 180 / Math.PI - 180;
+  if (lon < -180) lon += 360;
+  if (lon > 180) lon -= 360;
+  return {{ lat, lon: -lon }};
+}}
+
+function pointInRing(lon, lat, ring) {{
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {{
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }}
+  return inside;
+}}
+
+function findCountryAt(lat, lon) {{
+  if (!countryFeatures) return null;
+  for (const feature of countryFeatures) {{
+    const geom = feature.geometry;
+    if (!geom) continue;
+    const polygons = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
+    for (const polygon of polygons) {{
+      if (polygon.length > 0 && pointInRing(lon, lat, polygon[0])) {{
+        return feature.properties && (feature.properties.name || feature.properties.NAME);
+      }}
+    }}
+  }}
+  return null;
+}}
+
 function drawGlobe() {{
   ctx.clearRect(0, 0, W, H);
 
@@ -1125,7 +1469,6 @@ function drawGlobe() {{
   ctx.arc(W/2, H/2, R, 0, Math.PI * 2);
   ctx.clip();
 
-  // Meridianos / paralelos de fondo
   ctx.strokeStyle = 'rgba(200,169,110,0.05)';
   ctx.lineWidth = 0.5;
   for (let lon = -180; lon <= 180; lon += 20) {{
@@ -1149,11 +1492,9 @@ function drawGlobe() {{
     ctx.stroke();
   }}
 
-  // Continentes (GeoJSON real vía topojson world-atlas)
+  // Continentes (relleno)
   if (landFeatures) {{
-    ctx.fillStyle = 'rgba(180,178,172,0.16)';
-    ctx.strokeStyle = 'rgba(200,169,110,0.22)';
-    ctx.lineWidth = 0.6;
+    ctx.fillStyle = 'rgba(180,178,172,0.13)';
     landFeatures.forEach(feature => {{
       const geom = feature.geometry;
       if (!geom) return;
@@ -1161,24 +1502,71 @@ function drawGlobe() {{
       polygons.forEach(polygon => {{
         polygon.forEach(ring => {{
           ctx.beginPath();
-          let started = false;
-          let lastVisible = false;
+          let started = false, lastVisible = false;
           ring.forEach(([lon, lat]) => {{
             const p = project(lat, lon);
             if (p.visible) {{
               if (!started || !lastVisible) {{ ctx.moveTo(p.x, p.y); started = true; }}
               else ctx.lineTo(p.x, p.y);
               lastVisible = true;
-            }} else {{
-              lastVisible = false;
-            }}
+            }} else {{ lastVisible = false; }}
           }});
           ctx.closePath();
           ctx.fill();
+        }});
+      }});
+    }});
+  }}
+
+  // Fronteras de países (trazo)
+  if (countryFeatures) {{
+    ctx.strokeStyle = 'rgba(200,169,110,0.32)';
+    ctx.lineWidth = 0.7;
+    countryFeatures.forEach(feature => {{
+      const geom = feature.geometry;
+      if (!geom) return;
+      const polygons = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
+      polygons.forEach(polygon => {{
+        polygon.forEach(ring => {{
+          ctx.beginPath();
+          let started = false, lastVisible = false;
+          ring.forEach(([lon, lat]) => {{
+            const p = project(lat, lon);
+            if (p.visible) {{
+              if (!started || !lastVisible) {{ ctx.moveTo(p.x, p.y); started = true; }}
+              else ctx.lineTo(p.x, p.y);
+              lastVisible = true;
+            }} else {{ lastVisible = false; }}
+          }});
+          ctx.closePath();
           ctx.stroke();
         }});
       }});
     }});
+  }}
+
+  // Etiquetas de países al hacer zoom (solo cuando scale es alto)
+  if (countryFeatures && scale > 1.5) {{
+    ctx.font = '500 9px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(200,169,110,0.85)';
+    ctx.textAlign = 'center';
+    countryFeatures.forEach(feature => {{
+      const name = feature.properties && (feature.properties.name || feature.properties.NAME);
+      if (!name) return;
+      // Centroide aproximado del primer anillo del primer polígono
+      const geom = feature.geometry;
+      const polygons = geom.type === 'Polygon' ? [geom.coordinates] : (geom.type === 'MultiPolygon' ? geom.coordinates : []);
+      if (!polygons.length || !polygons[0].length) return;
+      const ring = polygons[0][0];
+      let sx = 0, sy = 0, n = 0;
+      ring.forEach(([lon, lat]) => {{ sx += lon; sy += lat; n++; }});
+      if (n === 0) return;
+      const p = project(sy / n, sx / n);
+      if (p.visible) {{
+        ctx.fillText(name, p.x, p.y);
+      }}
+    }});
+    ctx.textAlign = 'left';
   }}
 
   // Ecuador
@@ -1195,14 +1583,13 @@ function drawGlobe() {{
 
   ctx.restore();
 
-  // Borde del globo
   ctx.beginPath();
   ctx.arc(W/2, H/2, R, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(200,169,110,0.18)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Puntos de países resaltados
+  // Puntos de países resaltados (hotspots o foco de consulta)
   if (HIGHLIGHT_COUNTRIES.length > 0) {{
     HIGHLIGHT_COUNTRIES.forEach(country => {{
       const coords = COUNTRY_COORDS[country];
@@ -1244,26 +1631,37 @@ function animate() {{
   requestAnimationFrame(animate);
 }}
 
-canvas.addEventListener('mousedown', e => {{ isDragging = true; autoRotate = false; lastX = e.clientX; lastY = e.clientY; e.preventDefault(); }});
+canvas.addEventListener('mousedown', e => {{
+  isDragging = true; autoRotate = false; dragMoved = false;
+  lastX = e.clientX; lastY = e.clientY; e.preventDefault();
+}});
 canvas.addEventListener('mousemove', e => {{
   if (!isDragging) return;
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
   rotY += dx * 0.005; rotX += dy * 0.005;
   rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
   lastX = e.clientX; lastY = e.clientY;
 }});
-canvas.addEventListener('mouseup', () => {{ isDragging = false; }});
+canvas.addEventListener('mouseup', e => {{
+  isDragging = false;
+  if (!dragMoved) handleClick(e.offsetX, e.offsetY, e.clientX, e.clientY);
+}});
 canvas.addEventListener('mouseleave', () => {{ isDragging = false; }});
 canvas.addEventListener('wheel', e => {{
   scale *= e.deltaY > 0 ? 0.93 : 1.07;
-  scale = Math.max(0.5, Math.min(2.2, scale));
+  scale = Math.max(0.5, Math.min(3.5, scale));
   R = Math.min(W, H) * 0.42 * scale;
   e.preventDefault();
 }}, {{ passive: false }});
-canvas.addEventListener('touchstart', e => {{ isDragging = true; autoRotate = false; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; e.preventDefault(); }}, {{ passive: false }});
+canvas.addEventListener('touchstart', e => {{
+  isDragging = true; autoRotate = false; dragMoved = false;
+  lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; e.preventDefault();
+}}, {{ passive: false }});
 canvas.addEventListener('touchmove', e => {{
   if (!isDragging) return;
   const dx = e.touches[0].clientX - lastX, dy = e.touches[0].clientY - lastY;
+  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
   rotY += dx * 0.005; rotX += dy * 0.005;
   rotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, rotX));
   lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
@@ -1271,9 +1669,55 @@ canvas.addEventListener('touchmove', e => {{
 }}, {{ passive: false }});
 canvas.addEventListener('touchend', () => {{ isDragging = false; }});
 
+function handleClick(offsetX, offsetY, clientX, clientY) {{
+  const sphere = unprojectToSphere(offsetX, offsetY);
+  if (!sphere) return;
+  const countryName = findCountryAt(sphere.lat, sphere.lon);
+  if (!countryName) return;
+  showTooltip(countryName, offsetX, offsetY);
+  // Mostrar el tooltip inmediatamente; si ya tenemos el texto en caché (TOOLTIP_DATA), no recargar.
+  if (TOOLTIP_DATA && TOOLTIP_DATA.pais === countryName) {{ return; }}
+  try {{
+    const url = new URL(window.parent.location.href);
+    url.searchParams.set('pais_click_pendiente', countryName);
+    url.searchParams.set('nav', 'AuditoriaIA');
+    window.parent.location.href = url.toString();
+  }} catch (e) {{
+    document.getElementById('tt-body').innerHTML = '<span class="tt-loading">No se pudo conectar con el servidor.</span>';
+  }}
+}}
+
+function showTooltip(name, x, y) {{
+  document.getElementById('tt-title').textContent = name;
+  const cached = (TOOLTIP_DATA && TOOLTIP_DATA.pais === name) ? TOOLTIP_DATA.texto : null;
+  document.getElementById('tt-body').innerHTML = cached
+    ? cached
+    : '<span class="tt-loading">Generando briefing del país…</span>';
+  tooltip.style.display = 'block';
+  let left = x + 16, top = y - 10;
+  if (left + 250 > W) left = x - 260;
+  if (top + 120 > H) top = H - 130;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = Math.max(10, top) + 'px';
+}}
+function closeTooltip() {{ tooltip.style.display = 'none'; }}
+
+// Si ya tenemos datos de tooltip desde Streamlit (tras recargar), mostrarlo automáticamente
+if (TOOLTIP_DATA && TOOLTIP_DATA.pais) {{
+  const coords = COUNTRY_COORDS[TOOLTIP_DATA.pais];
+  setTimeout(() => {{
+    if (coords) {{
+      const p = project(coords[0], coords[1]);
+      showTooltip(TOOLTIP_DATA.pais, p.x, p.y);
+    }} else {{
+      showTooltip(TOOLTIP_DATA.pais, W/2, H/2);
+    }}
+  }}, 300);
+}}
+
 const label = document.getElementById('countries-label');
 if (HIGHLIGHT_COUNTRIES.length > 0) {{
-  label.innerHTML = '<span style="color:#4A5568;">Foco:</span><br>' + HIGHLIGHT_COUNTRIES.join('<br>');
+  label.innerHTML = '<span style="color:#4A5568;">' + FOCO_LABEL + ':</span><br>' + HIGHLIGHT_COUNTRIES.join('<br>');
 }} else {{
   label.innerHTML = '<span style="color:#2D3748;">Sin foco activo</span>';
 }}
@@ -1281,24 +1725,25 @@ if (HIGHLIGHT_COUNTRIES.length > 0) {{
 resize();
 window.addEventListener('resize', () => {{ resize(); }});
 
-// Cargar geometría real de continentes (world-atlas, vía CDN)
 fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json')
   .then(r => r.json())
-  .then(data => {{
-    const land = topojson.feature(data, data.objects.land);
-    landFeatures = land.features;
-  }})
+  .then(data => {{ landFeatures = topojson.feature(data, data.objects.land).features; }})
   .catch(() => {{ landFeatures = null; }});
+
+fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+  .then(r => r.json())
+  .then(data => {{ countryFeatures = topojson.feature(data, data.objects.countries).features; }})
+  .catch(() => {{ countryFeatures = null; }});
 
 animate();
 </script>
 </body>
 </html>
 """
-        st.components.v1.html(globo_html, height=520)
+        st.components.v1.html(globo_html, height=540)
         st.markdown(f"""
         <span class="rp-seccion-label">
-            {f"Foco activo: {', '.join(st.session_state.globe_countries)}" if st.session_state.globe_countries else "Consulta la terminal abajo para activar el localizador"}
+            {f"{foco_label}: {', '.join(st.session_state.globe_countries)}" if st.session_state.globe_countries else "Generando localizador geopolítico…"}
         </span>
         """, unsafe_allow_html=True)
 
@@ -1317,9 +1762,10 @@ animate();
             """, unsafe_allow_html=True)
 
             if st.session_state.briefing_contexto:
-                st.markdown(f'<div class="rp-intel-body">{st.session_state.briefing_contexto}</div>', unsafe_allow_html=True)
+                clave_tipeo = f"ctx_{int(st.session_state.briefing_timestamp)}"
+                render_texto_tipeo(st.session_state.briefing_contexto, velocidad_ms=10, key=clave_tipeo)
             else:
-                st.markdown('<div class="rp-intel-empty">Sin generar.<br>Pulsa "Generar Briefings" abajo.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="rp-intel-empty">Generando briefing automáticamente…</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
         with sub_col2:
@@ -1332,45 +1778,35 @@ animate();
             """, unsafe_allow_html=True)
 
             if st.session_state.briefing_semana:
-                st.markdown(f'<div class="rp-intel-body">{st.session_state.briefing_semana}</div>', unsafe_allow_html=True)
+                clave_tipeo = f"sem_{int(st.session_state.briefing_timestamp)}"
+                render_texto_tipeo(st.session_state.briefing_semana, velocidad_ms=10, key=clave_tipeo)
             else:
-                st.markdown('<div class="rp-intel-empty">Sin generar.<br>Pulsa "Generar Briefings" abajo.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="rp-intel-empty">Generando briefing automáticamente…</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("⟳ Generar Briefings con IA", use_container_width=True, key="btn_gen_briefing"):
-            if not api_key:
-                st.error("Falta la API Key en el entorno del servidor.")
-            else:
-                try:
-                    client = genai.Client(api_key=api_key)
-                    grounding_tool = types.Tool(google_search=types.GoogleSearch())
-
-                    with st.spinner("Sintetizando contexto geopolítico global..."):
-                        resp_contexto = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents="Resume en un párrafo denso (máx. 120 palabras) el contexto geopolítico, geoeconómico y político global ACTUAL. Tono frío, analítico y objetivo, como un brief de inteligencia. No uses títulos ni listas, solo prosa corrida.",
-                            config=types.GenerateContentConfig(
-                                tools=[grounding_tool],
-                                temperature=0.3
-                            )
-                        )
-                        st.session_state.briefing_contexto = resp_contexto.text
-
-                    with st.spinner("Recopilando sucesos relevantes de la semana..."):
-                        resp_semana = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents="Resume en un párrafo denso (máx. 120 palabras) los acontecimientos geopolíticos, geoeconómicos y políticos más relevantes de ESTA SEMANA a nivel global. Tono frío, analítico y objetivo, como un brief de inteligencia. No uses títulos ni listas, solo prosa corrida.",
-                            config=types.GenerateContentConfig(
-                                tools=[grounding_tool],
-                                temperature=0.3
-                            )
-                        )
-                        st.session_state.briefing_semana = resp_semana.text
-
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"⚠️ No fue posible generar el briefing automatizado: {str(e)}")
+        minutos_restantes = max(0, int((CACHE_BRIEFING_SEGUNDOS - (time.time() - st.session_state.briefing_timestamp)) / 60))
+        col_refresh, col_cache_info = st.columns([1, 1.4])
+        with col_refresh:
+            if st.button("⟳ Forzar Actualización", use_container_width=True, key="btn_gen_briefing"):
+                if not api_key:
+                    st.error("Falta la API Key en el entorno del servidor.")
+                else:
+                    try:
+                        with st.spinner("Regenerando briefing e identificando hotspots..."):
+                            contexto, semana, hotspots = generar_briefing_diario(api_key)
+                            st.session_state.briefing_contexto = contexto
+                            st.session_state.briefing_semana = semana
+                            st.session_state.hotspots_diarios = hotspots
+                            st.session_state.briefing_timestamp = time.time()
+                            st.session_state.globe_countries = hotspots
+                            st.session_state.foco_activo = "hotspots"
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"⚠️ No fue posible generar el briefing automatizado: {str(e)}")
+        with col_cache_info:
+            if st.session_state.briefing_contexto:
+                st.markdown(f'<div class="rp-intel-empty" style="padding-top:0.7rem;">Próxima actualización automática en ~{minutos_restantes} min</div>', unsafe_allow_html=True)
 
     st.markdown("<br><hr style='border-top: 1px solid #1A1F2E; margin: 1rem 0 2.5rem 0;'><br>", unsafe_allow_html=True)
 
@@ -1380,7 +1816,8 @@ animate();
     st.markdown('<span class="rp-seccion-label">Terminal de Consulta</span>', unsafe_allow_html=True)
     st.markdown("""
     <p style="color:#4A5568; font-size:0.85rem; margin-bottom:1.5rem;">
-        Formula una consulta — el sistema identificará los países involucrados y los resaltará en el globo.
+        Formula una consulta — el sistema identificará los países involucrados y los resaltará en el globo,
+        reemplazando temporalmente los hotspots del día.
     </p>
     """, unsafe_allow_html=True)
 
@@ -1416,17 +1853,25 @@ animate();
             </div>
             """, unsafe_allow_html=True)
         else:
-            for msg in st.session_state.historial_ia:
+            for idx, msg in enumerate(st.session_state.historial_ia):
                 if msg["rol"] == "usuario":
                     st.markdown(f'<div class="rp-chat-label">Analista</div><div class="rp-chat-bubble-user">{msg["texto"]}</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f'<div class="rp-chat-label">RealPolitik AI</div><div class="rp-chat-bubble-ai">{msg["texto"]}</div>', unsafe_allow_html=True)
+                    es_ultimo = (idx == len(st.session_state.historial_ia) - 1)
+                    st.markdown('<div class="rp-chat-label">RealPolitik AI</div>', unsafe_allow_html=True)
+                    if es_ultimo and not msg.get("ya_tipeado", False):
+                        render_texto_tipeo(msg["texto"], contenedor_css_class="rp-chat-bubble-ai", velocidad_ms=8, key=f"chat_{idx}")
+                        msg["ya_tipeado"] = True
+                    else:
+                        st.markdown(f'<div class="rp-chat-bubble-ai">{msg["texto"]}</div>', unsafe_allow_html=True)
 
     col_input_btn, col_clear = st.columns([3, 1])
     with col_clear:
         if st.button("Limpiar Chat", use_container_width=True):
             st.session_state.historial_ia = []
-            st.session_state.globe_countries = []
+            st.session_state.globe_countries = st.session_state.hotspots_diarios
+            st.session_state.foco_activo = "hotspots"
+            st.session_state.pop("_pais_activo_tooltip", None)
             st.rerun()
 
     prompt_usuario = st.chat_input("Escriba su consulta geopolítica...")
@@ -1444,7 +1889,6 @@ animate();
             id_art = [k for k, v in ARTICULOS_DB.items() if v["titulo"] == articulo_seleccionado][0]
             contexto_documento = f"Articulo: {articulo_seleccionado}\nContenido: {ARTICULOS_DB[id_art]['contenido']}"
 
-        # Instrucciones según la fuente seleccionada
         if fuente_seleccionada == "Solo Corpus":
             restriccion = "Debes responder ÚNICAMENTE con base en el corpus documental provisto abajo. No utilices conocimiento externo ni busques en la web. Si la respuesta no está en el corpus, indícalo explícitamente."
             usar_grounding = False
@@ -1486,20 +1930,25 @@ Si no hay países relevantes, escribe: PAÍSES_MAPA: ninguno"""
                 paises_raw = partes[1].strip()
                 if paises_raw.lower() != "ninguno":
                     st.session_state.globe_countries = [p.strip() for p in paises_raw.split(",") if p.strip()]
+                    st.session_state.foco_activo = "consulta"
                 else:
                     st.session_state.globe_countries = []
+                    st.session_state.foco_activo = "consulta"
             else:
                 respuesta_ia = respuesta_completa
                 st.session_state.globe_countries = []
+                st.session_state.foco_activo = "consulta"
 
         except Exception as e:
             respuesta_ia = f"⚠️ Error del Sistema: {str(e)}"
             st.session_state.globe_countries = []
+            st.session_state.foco_activo = "consulta"
 
         st.session_state.historial_ia.append({"rol": "sistema", "texto": respuesta_ia})
         st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 # =========================================================================
